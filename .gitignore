@@ -7,3 +7,4 @@ app/android/key.properties
 *.jks
 *.keystore
 .DS_Store
+downloads/
