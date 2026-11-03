@@ -86,16 +86,32 @@ jobs:
           path: app/build/app/outputs/flutter-apk/melopet.apk
 
   release:
-    # tag a commit with v* (e.g. v1.0.0) to publish a downloadable release
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Publishes downloadable files on every build:
+    #   - pushes to a branch  → pre-release "latest-build" (replaced each time)
+    #   - tags v* (v1.0.0...)  → a normal versioned release
     needs: [backend, android]
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest-build' }}
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: dist
+      - name: Replace previous latest-build
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: gh release delete latest-build --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('Latest build ({0})', github.ref_name) }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          make_latest: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          body: |
+            Melopet build from `${{ github.sha }}`.
+            - `melopet.apk` — Android app
+            - `melopet-server-*` — backend server binaries
           files: |
             dist/melopet-apk/melopet.apk
             dist/melopet-server/*
