@@ -9,7 +9,11 @@ import '../../theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
+import '../../widgets/location.dart';
 import '../../widgets/logo.dart';
+
+import 'package:latlong2/latlong.dart';
+
 import '../shared/contact_screen.dart';
 import '../shared/notifications_screen.dart';
 import 'price_list_screen.dart';
@@ -214,6 +218,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   };
   late String type = u.getStringValue('clinic_type').isEmpty ? 'clinic' : u.getStringValue('clinic_type');
   PickedBytes? logo;
+  late LatLng? location = geoOf(u, 'location');
   final _form = GlobalKey<FormState>();
   bool _saving = false;
 
@@ -227,7 +232,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           .collection('users')
           .update(
             u.id,
-            body: {...body, 'clinic_type': type, 'name': body['doctor_name']},
+            body: {...body, 'clinic_type': type, 'name': body['doctor_name'], if (location != null) 'location': geoJson(location!)},
             files: [if (logo != null) logo!.toMultipart('logo')],
           );
       if (!mounted) return;
@@ -272,6 +277,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             Field(c['contact_person']!, 'مسئول تحویل نمونه', icon: Icons.person_pin_rounded),
             Field(c['contact_mobile']!, 'موبایل مسئول تحویل', ltr: true, icon: Icons.phone_android_rounded),
             Field(c['city']!, 'شهر', icon: Icons.location_city_rounded),
+            LocationField(title: 'لوکیشن مجموعه روی نقشه', value: location, onChanged: (p) => setState(() => location = p)),
             Field(c['address']!, 'آدرس', maxLines: 3, required: true, icon: Icons.location_on_rounded),
             Field(c['working_hours']!, 'ساعات کاری', icon: Icons.schedule_rounded),
             Field(c['instagram']!, 'اینستاگرام', ltr: true, icon: Icons.camera_alt_rounded),

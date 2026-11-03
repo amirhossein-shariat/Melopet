@@ -6,6 +6,10 @@ import '../../state/app_state.dart';
 import '../../theme.dart';
 import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
+import '../../widgets/location.dart';
+
+import 'package:latlong2/latlong.dart';
+
 import '../clinic/profile_screen.dart';
 import '../shared/promotions_screen.dart';
 import 'broadcast_screen.dart';
@@ -99,12 +103,18 @@ class _LabSettingsScreenState extends State<LabSettingsScreen> {
   late final s = context.read<AppState>().settings;
   late final c = {for (final f in _fields.keys) f: TextEditingController(text: s?.getStringValue(f))};
   bool _saving = false;
+  late LatLng? location = geoOf(s, 'location');
 
   Future<void> _save() async {
     if (s == null) return;
     setState(() => _saving = true);
     try {
-      await Api.pb.collection('settings').update(s!.id, body: {for (final e in c.entries) e.key: e.value.text.trim()});
+      await Api.pb
+          .collection('settings')
+          .update(
+            s!.id,
+            body: {for (final e in c.entries) e.key: e.value.text.trim(), if (location != null) 'location': geoJson(location!)},
+          );
       if (!mounted) return;
       await context.read<AppState>().loadSettings();
       if (mounted) {
@@ -132,6 +142,11 @@ class _LabSettingsScreenState extends State<LabSettingsScreen> {
               maxLines: e.key == 'about' || e.key == 'address' ? 3 : 1,
               ltr: const ['phone', 'mobile', 'whatsapp', 'telegram', 'instagram', 'email', 'website'].contains(e.key),
             ),
+          LocationField(
+            title: 'لوکیشن آزمایشگاه (در «تماس با ما» و مسیریابی نشان)',
+            value: location,
+            onChanged: (p) => setState(() => location = p),
+          ),
           GradientButton(label: 'ذخیره', icon: Icons.save_rounded, loading: _saving, onPressed: _save),
         ],
       ),

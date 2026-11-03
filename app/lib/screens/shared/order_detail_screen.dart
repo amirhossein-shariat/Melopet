@@ -11,6 +11,8 @@ import '../../utils/format.dart';
 import '../../utils/results.dart';
 import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
+import '../../widgets/location.dart';
+import '../../widgets/voice.dart';
 import '../admin/result_entry_screen.dart';
 import '../chat/chat_screen.dart';
 
@@ -124,8 +126,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       _Timeline(o),
                       if (Api.isAdmin) ...[const SizedBox(height: 12), _AdminPanel(order: o, onChanged: _load)],
                       _results(o),
-                      const SectionTitle('مشخصات بیمار'),
+                      const SectionTitle('مشخصات کیس'),
                       _patient(o),
+                      ..._history(o),
+                      if (geoOf(o, 'location') != null) ...[
+                        const SectionTitle('محل دریافت نمونه'),
+                        MapPreview(point: geoOf(o, 'location')!, label: _clinic?.getStringValue('clinic_name') ?? ''),
+                      ],
                       const SectionTitle('آزمایش‌ها و هزینه'),
                       _items(o),
                       if (!Api.isAdmin && o.getStringValue('status') == 'requested') ...[
@@ -283,7 +290,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       ('ناشتا', o.getBoolValue('fasting') ? 'بله' : ''),
       ('زمان مراجعه پیک', o.getStringValue('pickup_time')),
       ('آدرس', o.getStringValue('pickup_address')),
-      ('شرح حال', o.getStringValue('clinical_notes')),
     ].where((r) => r.$2.isNotEmpty).toList();
     return Glass(
       child: Column(
@@ -307,6 +313,25 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         ],
       ),
     );
+  }
+
+  List<Widget> _history(RecordModel o) {
+    final text = o.getStringValue('clinical_notes');
+    final voice = o.getStringValue('history_voice');
+    if (text.isEmpty && voice.isEmpty) return const [];
+    return [
+      const SectionTitle('تاریخچه کیس (History)'),
+      Glass(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (text.isNotEmpty) SelectableText(text, style: const TextStyle(height: 1.8)),
+            if (text.isNotEmpty && voice.isNotEmpty) const Divider(height: 20),
+            if (voice.isNotEmpty) VoicePlayer.url(Api.fileUrlByName(o, voice).toString(), seconds: o.getIntValue('history_voice_seconds')),
+          ],
+        ),
+      ),
+    ];
   }
 
   Widget _items(RecordModel o) {

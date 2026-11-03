@@ -16,6 +16,7 @@ import '../../utils/format.dart';
 import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/logo.dart';
+import '../../widgets/voice.dart';
 
 /// Telegram-like chat between a clinic and the lab.
 /// Messages are permanent: the backend rejects edits and deletes.
@@ -184,6 +185,31 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       }
     }
+  }
+
+  /// Voice message: record (or pick an audio file), preview, then send.
+  Future<void> _recordVoice() async {
+    VoiceClip? clip;
+    final send = await showGlassSheet<bool>(
+      context,
+      (c) => StatefulBuilder(
+        builder: (c, setSheet) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('پیام صوتی', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              const SizedBox(height: 12),
+              VoiceRecorderField(value: clip, onChanged: (v) => setSheet(() => clip = v)),
+              const SizedBox(height: 12),
+              GradientButton(label: 'ارسال', icon: Icons.send_rounded, onPressed: clip == null ? null : () => Navigator.pop(c, true)),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (send == true && clip != null) await _send(file: clip!.file, kind: 'voice');
   }
 
   Future<void> _attach() async {
@@ -450,10 +476,10 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                       const SizedBox(width: 6),
                       AnimatedScale(
-                        scale: _input.text.trim().isEmpty ? .85 : 1,
+                        scale: 1,
                         duration: const Duration(milliseconds: 150),
                         child: InkWell(
-                          onTap: _sending ? null : () => _send(),
+                          onTap: _sending ? null : (_input.text.trim().isEmpty ? _recordVoice : () => _send()),
                           customBorder: const CircleBorder(),
                           child: Container(
                             width: 46,
@@ -464,7 +490,11 @@ class _ChatScreenState extends State<ChatScreen> {
                                     padding: EdgeInsets.all(13),
                                     child: CircularProgressIndicator(strokeWidth: 2, color: MP.plum),
                                   )
-                                : const Icon(Icons.send_rounded, color: MP.plum, textDirection: TextDirection.rtl),
+                                : Icon(
+                                    _input.text.trim().isEmpty ? Icons.mic_rounded : Icons.send_rounded,
+                                    color: MP.plum,
+                                    textDirection: TextDirection.rtl,
+                                  ),
                           ),
                         ),
                       ),
@@ -486,6 +516,8 @@ String _preview(RecordModel m) {
       return '🖼 تصویر ${m.getStringValue('text')}';
     case 'file':
       return '📎 ${m.getStringValue('file_name')}';
+    case 'voice':
+      return '🎤 پیام صوتی';
   }
   return m.getStringValue('text');
 }
@@ -614,7 +646,16 @@ class _Bubble extends StatelessWidget {
     );
 
     Widget content;
-    if (kind == 'image' && msg.getStringValue('file').isNotEmpty) {
+    if (kind == 'voice' && msg.getStringValue('file').isNotEmpty) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(width: 230, child: VoicePlayer.url(Api.fileUrl(msg, 'file').toString())),
+          Padding(padding: const EdgeInsets.only(top: 2), child: meta),
+        ],
+      );
+    } else if (kind == 'image' && msg.getStringValue('file').isNotEmpty) {
       final thumb = Api.fileUrl(msg, 'file', thumb: '400x0').toString();
       final full = Api.fileUrl(msg, 'file').toString();
       content = Column(

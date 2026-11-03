@@ -54,7 +54,11 @@ dependencies:
   http: ^1.6.0
   flutter_localizations:
     sdk: flutter
-
+  flutter_map: ^8.3.2
+  latlong2: ^0.10.1
+  geolocator: ^14.0.1
+  record: ^7.1.2
+  audioplayers: ^6.8.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

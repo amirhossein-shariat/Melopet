@@ -97,6 +97,24 @@ class Export {
             ['دامپزشک', clinic?.getStringValue('doctor_name') ?? ''],
           ]),
           pw.SizedBox(height: 10),
+          if (order.getStringValue('clinical_notes').isNotEmpty)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 4),
+              child: pw.RichText(
+                text: pw.TextSpan(
+                  children: [
+                    pw.TextSpan(
+                      text: 'تاریخچه: ',
+                      style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: _grey),
+                    ),
+                    pw.TextSpan(
+                      text: order.getStringValue('clinical_notes'),
+                      style: const pw.TextStyle(fontSize: 9, color: _grey),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           for (final t in results) ..._testBlock(t),
           if (order.getStringValue('lab_comment').isNotEmpty) ...[
             pw.SizedBox(height: 8),

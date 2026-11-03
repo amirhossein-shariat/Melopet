@@ -90,14 +90,20 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 16),
                           TextFormField(
                             controller: _mobile,
-                            keyboardType: TextInputType.phone,
+                            keyboardType: TextInputType.visiblePassword,
+                            autocorrect: false,
                             textDirection: TextDirection.ltr,
                             decoration: const InputDecoration(
                               labelText: 'شماره موبایل',
                               hintText: '09xxxxxxxxx',
                               prefixIcon: Icon(Icons.phone_iphone_rounded),
                             ),
-                            validator: (v) => RegExp(r'^09\d{9}$').hasMatch(enNum(v?.trim() ?? '')) ? null : 'شماره موبایل معتبر نیست',
+                            validator: (v) {
+                              final s = enNum(v?.trim() ?? '');
+                              // clinics: mobile number — lab admin: dedicated admin ID
+                              if (RegExp(r'^09\d{9}$').hasMatch(s) || RegExp(r'^[a-zA-Z][a-zA-Z0-9_.\-]{2,}$').hasMatch(s)) return null;
+                              return 'شماره موبایل معتبر نیست';
+                            },
                           ),
                           const SizedBox(height: 12),
                           TextFormField(

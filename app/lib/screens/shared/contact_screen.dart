@@ -6,6 +6,7 @@ import '../../state/app_state.dart';
 import '../../theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/glass.dart';
+import '../../widgets/location.dart';
 import '../../widgets/logo.dart';
 import '../chat/chat_screen.dart';
 
@@ -21,6 +22,7 @@ class ContactScreen extends StatelessWidget {
     Future<void> open(String url) => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     String digits(String x) => enNum(x).replaceAll(RegExp(r'[^0-9+]'), '');
 
+    final labPoint = geoOf(s, 'location');
     final items = <(IconData, Color, String, String, VoidCallback?)>[
       if (v('phone').isNotEmpty)
         (Icons.call_rounded, MP.mintDeep, 'تلفن آزمایشگاه', faNum(v('phone')), () => open('tel:${digits(v('phone'))}')),
@@ -60,7 +62,13 @@ class ContactScreen extends StatelessWidget {
           () => open(v('website').startsWith('http') ? v('website') : 'https://${v('website')}'),
         ),
       if (v('address').isNotEmpty)
-        (Icons.location_on_rounded, MP.danger, 'آدرس', v('address'), () => open('geo:0,0?q=${Uri.encodeComponent(v('address'))}')),
+        (
+          Icons.location_on_rounded,
+          MP.danger,
+          'آدرس',
+          v('address'),
+          () => labPoint != null ? openInNeshan(labPoint) : open('geo:0,0?q=${Uri.encodeComponent(v('address'))}'),
+        ),
       if (v('working_hours').isNotEmpty) (Icons.schedule_rounded, MP.warning, 'ساعات کاری', faNum(v('working_hours')), null),
     ];
 
@@ -83,6 +91,22 @@ class ContactScreen extends StatelessWidget {
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatScreen())),
           ),
           const SizedBox(height: 14),
+          if (labPoint != null) ...[
+            Glass(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(6, 2, 6, 8),
+                    child: Text('موقعیت آزمایشگاه روی نقشه', style: TextStyle(fontWeight: FontWeight.w900)),
+                  ),
+                  MapPreview(point: labPoint, height: 190, label: v('lab_name')),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           for (final i in items)
             Glass(
               margin: const EdgeInsets.only(bottom: 10),

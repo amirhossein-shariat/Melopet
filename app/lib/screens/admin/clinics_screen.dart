@@ -7,6 +7,7 @@ import '../../theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
+import '../../widgets/location.dart';
 import '../chat/chat_screen.dart';
 import '../clinic/courier_request_screen.dart';
 import '../clinic/profile_screen.dart';
@@ -372,6 +373,10 @@ class _ClinicAdminScreenState extends State<ClinicAdminScreen> {
               ],
             ),
           ),
+          if (geoOf(c, 'location') != null) ...[
+            const SectionTitle('لوکیشن (برای پیک)'),
+            MapPreview(point: geoOf(c, 'location')!, label: v('clinic_name')),
+          ],
           if (v('letterhead').isNotEmpty) ...[
             const SectionTitle('سربرگ'),
             ClipRRect(borderRadius: BorderRadius.circular(16), child: Image.network(Api.fileUrl(c, 'letterhead').toString(), height: 240)),

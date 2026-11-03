@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"slices"
 	"strings"
@@ -76,7 +77,10 @@ type orderRequest struct {
 	Fasting       bool     `json:"fasting"`
 	PickupAddress string   `json:"pickup_address"`
 	PickupTime    string   `json:"pickup_time"`
-	ClinicalNotes string   `json:"clinical_notes"`
+	ClinicalNotes string   `json:"clinical_notes"` // case history (text)
+	VoiceSeconds  float64  `json:"history_voice_seconds"`
+	Lat           float64  `json:"lat"`
+	Lon           float64  `json:"lon"`
 }
 
 func registerRoutes(se *core.ServeEvent) {
@@ -97,10 +101,29 @@ func registerRoutes(se *core.ServeEvent) {
 	})
 
 	// Courier request / new order. Prices are computed on the server.
+	// Accepts JSON, or multipart with a "data" JSON field + optional "history_voice" file.
 	g.POST("/orders", func(e *core.RequestEvent) error {
 		var body orderRequest
-		if err := e.BindBody(&body); err != nil {
+		if strings.HasPrefix(e.Request.Header.Get("Content-Type"), "multipart/") {
+			if err := e.Request.ParseMultipartForm(32 << 20); err != nil {
+				return e.BadRequestError("درخواست نامعتبر است", err)
+			}
+			raw := e.Request.FormValue("data")
+			if raw == "" {
+				raw = e.Request.FormValue("@jsonPayload") // official SDKs
+			}
+			if err := json.Unmarshal([]byte(raw), &body); err != nil {
+				return e.BadRequestError("درخواست نامعتبر است", err)
+			}
+		} else if err := e.BindBody(&body); err != nil {
 			return e.BadRequestError("درخواست نامعتبر است", err)
+		}
+		voice, _ := e.FindUploadedFiles("history_voice")
+		if strings.TrimSpace(body.ClinicalNotes) == "" && len(voice) == 0 {
+			return e.BadRequestError("تاریخچه کیس (متن یا ویس) الزامی است", nil)
+		}
+		if strings.TrimSpace(body.PetName) == "" || strings.TrimSpace(body.OwnerName) == "" || body.Species == "" {
+			return e.BadRequestError("نام حیوان، نام صاحب و نوع حیوان الزامی است", nil)
 		}
 
 		clinic := e.Auth
@@ -165,6 +188,16 @@ func registerRoutes(se *core.ServeEvent) {
 		r.Set("pickup_address", addr)
 		r.Set("pickup_time", body.PickupTime)
 		r.Set("clinical_notes", body.ClinicalNotes)
+		if len(voice) > 0 {
+			r.Set("history_voice", voice[0])
+			r.Set("history_voice_seconds", body.VoiceSeconds)
+		}
+		// pickup location: explicit pin, else the clinic's saved location
+		if body.Lat != 0 && body.Lon != 0 {
+			r.Set("location", types.GeoPoint{Lon: body.Lon, Lat: body.Lat})
+		} else {
+			r.Set("location", clinic.Get("location"))
+		}
 		r.Set("items", items)
 		r.Set("total", total)
 		if err := e.App.Save(r); err != nil {

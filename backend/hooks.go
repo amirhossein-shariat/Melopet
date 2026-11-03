@@ -63,6 +63,7 @@ func registerHooks(app core.App) {
 		if !e.HasSuperuserAuth() && !isAdmin(e.Auth) {
 			e.Record.Set("role", "clinic")
 			e.Record.Set("approved", autoApprove())
+			e.Record.Set("username", "") // admin IDs are assigned by the lab only
 		}
 		if e.Record.GetString("role") == "" {
 			e.Record.Set("role", "clinic")
@@ -122,8 +123,12 @@ func registerHooks(app core.App) {
 		if e.Record.GetBool("urgent") {
 			urgent = " (فوری)"
 		}
-		notify(e.App, "", "admins", "order", "درخواست پیک جدید"+urgent,
-			fmt.Sprintf("%s — %s", name, e.Record.GetString("code")), e.Record.Id)
+		species := map[string]string{"dog": "سگ", "cat": "گربه", "bird": "پرنده", "rabbit": "خرگوش", "rodent": "جونده",
+			"reptile": "خزنده", "horse": "اسب", "ruminant": "نشخوارکننده", "other": "سایر"}[e.Record.GetString("species")]
+		var items []map[string]any
+		_ = e.Record.UnmarshalJSONField("items", &items)
+		body := fmt.Sprintf("%s | %s (%s) | %d آزمایش | %s", name, e.Record.GetString("pet_name"), species, len(items), e.Record.GetString("code"))
+		notify(e.App, "", "admins", "order", "🛵 درخواست پیک جدید"+urgent, body, e.Record.Id)
 		return nil
 	})
 
