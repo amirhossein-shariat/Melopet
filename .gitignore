@@ -1,0 +1,9 @@
+# backend
+backend/pb_data/
+backend/dist/
+backend/melopet-server*
+# secrets
+app/android/key.properties
+*.jks
+*.keystore
+.DS_Store
