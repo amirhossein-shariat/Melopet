@@ -706,3 +706,32 @@ class _RevealState extends State<Reveal> with SingleTickerProviderStateMixin {
     );
   }
 }
+
+/// Result value with its high/low arrow, optically aligned: the digits' ink sits higher than the
+/// centre of Vazirmatn's text box, so the arrow is lifted by the measured offset (≈1.8px at 13px text).
+class FlaggedValue extends StatelessWidget {
+  final String value;
+  final bool? high; // true = high, false = low, null = no arrow
+  final Color color;
+  final double fontSize;
+  const FlaggedValue({super.key, required this.value, required this.high, required this.color, this.fontSize = 13});
+
+  @override
+  Widget build(BuildContext context) {
+    final iconSize = fontSize + 1;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: fontSize, color: color),
+        ),
+        if (high != null)
+          Transform.translate(
+            offset: Offset(0, -fontSize * .14),
+            child: Icon(high! ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, size: iconSize, color: color),
+          ),
+      ],
+    );
+  }
+}

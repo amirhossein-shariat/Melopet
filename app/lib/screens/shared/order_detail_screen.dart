@@ -663,24 +663,17 @@ class ResultCard extends StatelessWidget {
                           Expanded(flex: 3, child: Text(p.name, style: const TextStyle(fontSize: 12.5))),
                           Expanded(
                             flex: 2,
-                            child: Row(
-                              children: [
-                                Text(
-                                  p.value,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13,
-                                    color: p.flag == Flag.high
-                                        ? readable(context, MP.danger)
-                                        : p.flag == Flag.low
-                                        ? readable(context, const Color(0xFF3F7FD0))
-                                        : null,
-                                  ),
-                                ),
-                                if (p.flag == Flag.high) Icon(Icons.arrow_upward_rounded, size: 14, color: readable(context, MP.danger)),
-                                if (p.flag == Flag.low)
-                                  Icon(Icons.arrow_downward_rounded, size: 14, color: readable(context, const Color(0xFF3F7FD0))),
-                              ],
+                            child: Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: FlaggedValue(
+                                value: p.value,
+                                high: p.flag == Flag.high ? true : (p.flag == Flag.low ? false : null),
+                                color: p.flag == Flag.high
+                                    ? readable(context, MP.danger)
+                                    : p.flag == Flag.low
+                                    ? readable(context, const Color(0xFF3F7FD0))
+                                    : Theme.of(context).colorScheme.onSurface,
+                              ),
                             ),
                           ),
                           Expanded(flex: 2, child: Text(p.unit, style: const TextStyle(fontSize: 11))),
