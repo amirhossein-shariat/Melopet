@@ -37,6 +37,9 @@ class MelopetApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      builder: (context, child) => Api.isDemo && child != null
+          ? Banner(message: 'نمایشی', location: BannerLocation.bottomStart, color: const Color(0xCCD9668F), child: child)
+          : child!,
       home: const Root(),
     );
   }

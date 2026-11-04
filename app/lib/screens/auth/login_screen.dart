@@ -3,11 +3,15 @@ import 'package:provider/provider.dart';
 
 import '../../services/api.dart';
 import '../../state/app_state.dart';
+import '../../theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/logo.dart';
-import 'register_screen.dart';
+import 'code_screen.dart';
 
+/// One login screen for everyone:
+///  * a mobile number (09...) → SMS code → signed in (or registration for new numbers)
+///  * the lab's admin ID → password
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
   @override
@@ -15,19 +19,48 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _mobile = TextEditingController();
+  final _id = TextEditingController();
   final _pass = TextEditingController();
   final _form = GlobalKey<FormState>();
   bool _loading = false;
   bool _obscure = true;
 
-  Future<void> _login() async {
+  static final _mobileRe = RegExp(r'^09\d{9}$');
+  static final _adminIdRe = RegExp(r'^[a-zA-Z][a-zA-Z0-9_.\-]{2,}$');
+
+  String get _value => enNum(_id.text.trim());
+  bool get _isAdminId => _adminIdRe.hasMatch(_value);
+
+  Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      await Api.pb.collection('users').authWithPassword(enNum(_mobile.text.trim()), _pass.text);
-      if (!mounted) return;
-      await context.read<AppState>().onLoggedIn();
+      if (_isAdminId) {
+        await Api.pb.collection('users').authWithPassword(_value, _pass.text);
+        if (mounted) await context.read<AppState>().onLoggedIn();
+      } else {
+        final testMode = await Api.requestCode(_value);
+        if (!mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CodeScreen(mobile: _value, testMode: testMode),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) toast(context, Api.error(e), error: true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Demo only: one-tap sign-in with a sample account.
+  Future<void> _quick(String id, String password) async {
+    setState(() => _loading = true);
+    try {
+      await Api.pb.collection('users').authWithPassword(id, password);
+      if (mounted) await context.read<AppState>().onLoggedIn();
     } catch (e) {
       if (mounted) toast(context, Api.error(e), error: true);
     } finally {
@@ -37,32 +70,52 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _serverDialog() async {
     final c = TextEditingController(text: Api.serverUrl(Api.prefs));
-    final ok = await showDialog<bool>(
+    final choice = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('آدرس سرور'),
-        content: TextField(
-          controller: c,
-          textDirection: TextDirection.ltr,
-          decoration: const InputDecoration(hintText: 'https://api.example.com'),
+        title: const Text('تنظیمات اتصال'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('آدرس سرور', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: c,
+              textDirection: TextDirection.ltr,
+              decoration: const InputDecoration(hintText: 'https://api.example.com'),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.pop(ctx, 'demo'),
+              icon: const Icon(Icons.science_rounded),
+              label: Text(Api.isDemo ? 'خروج از حالت نمایشی' : 'حالت نمایشی (بدون سرور)'),
+            ),
+          ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('انصراف')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ذخیره')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('انصراف')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, 'save'), child: const Text('ذخیره')),
         ],
       ),
     );
-    if (ok == true) {
+    if (choice == null || !mounted) return;
+    if (choice == 'demo') {
+      await Api.setDemo(!Api.isDemo);
+    } else {
+      await Api.setDemo(false);
       await Api.setServer(c.text);
-      if (mounted) {
-        await context.read<AppState>().loadSettings();
-        if (mounted) toast(context, 'سرور تنظیم شد');
-      }
+    }
+    if (mounted) {
+      await context.read<AppState>().loadSettings();
+      if (mounted) toast(context, choice == 'demo' && Api.isDemo ? 'حالت نمایشی فعال شد' : 'تنظیم شد');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final showPassword = _isAdminId;
     return MPScaffold(
       body: SafeArea(
         child: Center(
@@ -76,23 +129,26 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     GestureDetector(onLongPress: _serverDialog, child: const MelopetLogo(size: 96, withText: true)),
                     const SizedBox(height: 12),
-                    Text(
-                      'پنل همکاران آزمایشگاه دامپزشکی',
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .6)),
-                    ),
+                    Text('پنل همکاران آزمایشگاه دامپزشکی', style: TextStyle(color: cs.onSurface.withValues(alpha: .6))),
                     const SizedBox(height: 28),
                     Glass(
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Text('ورود به حساب', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                          const Text('ورود / ثبت‌نام', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 6),
+                          Text(
+                            showPassword ? 'رمز عبور مدیر آزمایشگاه را وارد کنید.' : 'شماره موبایل خود را وارد کنید تا کد تایید پیامک شود.',
+                            style: TextStyle(fontSize: 12.5, color: cs.onSurface.withValues(alpha: .65)),
+                          ),
                           const SizedBox(height: 16),
                           TextFormField(
-                            controller: _mobile,
+                            controller: _id,
                             keyboardType: TextInputType.visiblePassword,
                             autocorrect: false,
                             textDirection: TextDirection.ltr,
+                            onChanged: (_) => setState(() {}),
                             decoration: const InputDecoration(
                               labelText: 'شماره موبایل',
                               hintText: '09xxxxxxxxx',
@@ -101,66 +157,99 @@ class _LoginScreenState extends State<LoginScreen> {
                             validator: (v) {
                               final s = enNum(v?.trim() ?? '');
                               // clinics: mobile number — lab admin: dedicated admin ID
-                              if (RegExp(r'^09\d{9}$').hasMatch(s) || RegExp(r'^[a-zA-Z][a-zA-Z0-9_.\-]{2,}$').hasMatch(s)) return null;
-                              return 'شماره موبایل معتبر نیست';
+                              return _mobileRe.hasMatch(s) || _adminIdRe.hasMatch(s) ? null : 'شماره موبایل معتبر نیست';
                             },
+                            onFieldSubmitted: (_) => showPassword ? null : _submit(),
                           ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _pass,
-                            obscureText: _obscure,
-                            textDirection: TextDirection.ltr,
-                            decoration: InputDecoration(
-                              labelText: 'رمز عبور',
-                              prefixIcon: const Icon(Icons.lock_rounded),
-                              suffixIcon: IconButton(
-                                icon: Icon(_obscure ? Icons.visibility_rounded : Icons.visibility_off_rounded),
-                                onPressed: () => setState(() => _obscure = !_obscure),
-                              ),
-                            ),
-                            validator: (v) => (v ?? '').length < 8 ? 'حداقل ۸ کاراکتر' : null,
-                            onFieldSubmitted: (_) => _login(),
+                          AnimatedSize(
+                            duration: const Duration(milliseconds: 220),
+                            child: showPassword
+                                ? Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: TextFormField(
+                                      controller: _pass,
+                                      obscureText: _obscure,
+                                      textDirection: TextDirection.ltr,
+                                      decoration: InputDecoration(
+                                        labelText: 'رمز عبور',
+                                        prefixIcon: const Icon(Icons.lock_rounded),
+                                        suffixIcon: IconButton(
+                                          icon: Icon(_obscure ? Icons.visibility_rounded : Icons.visibility_off_rounded),
+                                          onPressed: () => setState(() => _obscure = !_obscure),
+                                        ),
+                                      ),
+                                      validator: (v) => (v ?? '').length < 8 ? 'حداقل ۸ کاراکتر' : null,
+                                      onFieldSubmitted: (_) => _submit(),
+                                    ),
+                                  )
+                                : const SizedBox(width: double.infinity),
                           ),
                           const SizedBox(height: 20),
-                          GradientButton(label: 'ورود', icon: Icons.login_rounded, loading: _loading, onPressed: _login),
-                          const SizedBox(height: 6),
-                          TextButton(
-                            onPressed: () => showDialog(
-                              context: context,
-                              builder: (c) => AlertDialog(
-                                title: const Text('فراموشی رمز عبور'),
-                                content: Text(
-                                  'برای بازیابی رمز با آزمایشگاه تماس بگیرید:\n${context.read<AppState>().settings?.getStringValue('phone') ?? ''}',
-                                ),
-                                actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('باشه'))],
-                              ),
-                            ),
-                            child: const Text('رمز عبور را فراموش کرده‌ام'),
+                          GradientButton(
+                            label: showPassword ? 'ورود' : 'دریافت کد تایید',
+                            icon: showPassword ? Icons.login_rounded : Icons.sms_rounded,
+                            loading: _loading,
+                            onPressed: _submit,
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 16),
                     Glass(
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen())),
+                      padding: const EdgeInsets.all(14),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const GlassIcon(Icons.local_hospital_rounded, size: 46),
-                          const SizedBox(width: 14),
+                          Icon(Icons.info_outline_rounded, size: 18, color: cs.primary),
+                          const SizedBox(width: 8),
                           const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: Text(
+                              'اگر قبلا ثبت‌نام نکرده‌اید، بعد از تایید کد، یک بار مشخصات کلینیک یا بیمارستان را وارد می‌کنید و همان لحظه وارد پنل می‌شوید.',
+                              style: TextStyle(fontSize: 12.5, height: 1.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (Api.isDemo) ...[
+                      const SizedBox(height: 16),
+                      Glass(
+                        tint: MP.lavender.withValues(alpha: .22),
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Text('🧪 نسخه نمایشی', style: TextStyle(fontWeight: FontWeight.w900)),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'داده‌ها نمونه‌اند و با رفرش صفحه به حالت اول برمی‌گردند. برای دیدن هر بخش یکی از دو ورود سریع زیر را بزنید. '
+                              'ورود با شماره دلخواه: هر شماره ۰۹... و کد ۱۱۱۱.',
+                              style: TextStyle(fontSize: 12.5, height: 1.7),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
                               children: [
-                                Text('ثبت‌نام کلینیک / بیمارستان', style: TextStyle(fontWeight: FontWeight.w800)),
-                                SizedBox(height: 2),
-                                Text('فقط یک بار مشخصات مرکز را ثبت کنید', style: TextStyle(fontSize: 12)),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _loading ? null : () => _quick('09121111111', 'demo1234'),
+                                    icon: const Icon(Icons.local_hospital_rounded),
+                                    label: const Text('پنل کلینیک'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _loading ? null : () => _quick('melopet', 'melopet-admin-1234'),
+                                    icon: const Icon(Icons.admin_panel_settings_rounded),
+                                    label: const Text('پنل مدیر'),
+                                  ),
+                                ),
                               ],
                             ),
-                          ),
-                          Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Theme.of(context).colorScheme.primary),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),

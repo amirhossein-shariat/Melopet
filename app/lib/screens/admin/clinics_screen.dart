@@ -5,7 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../services/api.dart';
 import '../../theme.dart';
 import '../../utils/format.dart';
-import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/location.dart';
 import '../chat/chat_screen.dart';
@@ -236,28 +235,6 @@ class _ClinicAdminScreenState extends State<ClinicAdminScreen> {
     }
   }
 
-  Future<void> _resetPassword() async {
-    final p = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('تعیین رمز جدید'),
-        content: Field(p, 'رمز جدید (حداقل ۸ کاراکتر)', ltr: true),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('انصراف')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ذخیره')),
-        ],
-      ),
-    );
-    if (ok != true || p.text.length < 8) return;
-    try {
-      await Api.pb.collection('users').update(c.id, body: {'password': p.text, 'passwordConfirm': p.text});
-      if (mounted) toast(context, 'رمز تغییر کرد. آن را به همکار اطلاع دهید.');
-    } catch (e) {
-      if (mounted) toast(context, Api.error(e), error: true);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     String v(String f) => c.getStringValue(f);
@@ -393,11 +370,6 @@ class _ClinicAdminScreenState extends State<ClinicAdminScreen> {
                 },
                 icon: const Icon(Icons.edit_rounded),
                 label: const Text('ویرایش مشخصات'),
-              ),
-              OutlinedButton.icon(
-                onPressed: _resetPassword,
-                icon: const Icon(Icons.lock_reset_rounded),
-                label: const Text('تعیین رمز جدید'),
               ),
             ],
           ),

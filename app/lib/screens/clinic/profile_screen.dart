@@ -101,7 +101,7 @@ class ProfileScreen extends StatelessWidget {
             'اعلان‌ها',
             () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen())),
           ),
-          _tile(context, Icons.lock_reset_rounded, MP.sky, 'تغییر رمز عبور', () => _changePassword(context)),
+          if (state.isAdmin) _tile(context, Icons.lock_reset_rounded, MP.sky, 'تغییر رمز عبور', () => _changePassword(context)),
           const SectionTitle('ظاهر برنامه'),
           Glass(
             padding: const EdgeInsets.all(8),

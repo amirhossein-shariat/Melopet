@@ -61,6 +61,15 @@ func registerHooks(app core.App) {
 	// ---- users: new sign-ups are always clinics ---------------------------
 	app.OnRecordCreateRequest("users").BindFunc(func(e *core.RecordRequestEvent) error {
 		if !e.HasSuperuserAuth() && !isAdmin(e.Auth) {
+			// a clinic account can only be created for a mobile number verified by SMS code
+			info, err := e.RequestInfo()
+			if err != nil {
+				return err
+			}
+			proof, _ := info.Body["otp_proof"].(string)
+			if !verifyProof(proof, e.Record.GetString("mobile")) {
+				return e.BadRequestError("ابتدا شماره موبایل را با کد پیامکی تایید کنید", nil)
+			}
 			e.Record.Set("role", "clinic")
 			e.Record.Set("approved", autoApprove())
 			e.Record.Set("username", "") // admin IDs are assigned by the lab only

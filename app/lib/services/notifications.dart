@@ -80,13 +80,15 @@ class Notifications {
     await init();
     try {
       await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.requestNotificationsPermission();
-      await Workmanager().registerPeriodicTask(
-        _bgTask,
-        _bgTask,
-        frequency: const Duration(minutes: 15),
-        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
-        constraints: Constraints(networkType: NetworkType.connected),
-      );
+      if (!Api.isDemo) {
+        await Workmanager().registerPeriodicTask(
+          _bgTask,
+          _bgTask,
+          frequency: const Duration(minutes: 15),
+          existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+          constraints: Constraints(networkType: NetworkType.connected),
+        );
+      }
     } catch (e) {
       debugPrint('workmanager: $e');
     }

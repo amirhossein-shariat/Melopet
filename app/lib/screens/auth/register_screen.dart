@@ -1,9 +1,13 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
 import '../../services/api.dart';
 import '../../state/app_state.dart';
+import '../../theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
@@ -11,9 +15,12 @@ import '../../widgets/location.dart';
 
 import 'package:latlong2/latlong.dart';
 
-/// One-time sign-up of a clinic / hospital (4 short steps).
+/// One-time sign-up of a clinic / hospital (3 short steps), shown after the
+/// mobile number was verified by SMS code ([proof] is the server's signup token).
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  final String mobile;
+  final String proof;
+  const RegisterScreen({super.key, required this.mobile, required this.proof});
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
@@ -21,13 +28,9 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   int _step = 0;
   bool _loading = false;
-  final _forms = List.generate(4, (_) => GlobalKey<FormState>());
+  final _forms = List.generate(3, (_) => GlobalKey<FormState>());
 
-  // step 1 — account
-  final mobile = TextEditingController();
-  final pass = TextEditingController();
-  final pass2 = TextEditingController();
-  // step 2 — center
+  // step 1 — center
   String clinicType = 'clinic';
   final clinicName = TextEditingController();
   final doctorName = TextEditingController();
@@ -35,24 +38,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final phone = TextEditingController();
   final contactPerson = TextEditingController();
   final contactMobile = TextEditingController();
-  // step 3 — address
+  // step 2 — address
   final city = TextEditingController(text: 'تهران');
   final address = TextEditingController();
   final hours = TextEditingController();
   final email = TextEditingController();
   final instagram = TextEditingController();
-  // step 4 — branding
+  // step 3 — branding
   LatLng? location;
   PickedBytes? logo;
   PickedBytes? letterhead;
   bool accepted = false;
 
-  static const _titles = ['حساب کاربری', 'مشخصات مرکز', 'آدرس و ساعات کاری', 'لوگو و سربرگ'];
-  static const _icons = [Icons.person_rounded, Icons.local_hospital_rounded, Icons.location_on_rounded, Icons.image_rounded];
+  static const _titles = ['مشخصات مرکز', 'آدرس و ساعات کاری', 'لوگو و سربرگ'];
+  static const _icons = [Icons.local_hospital_rounded, Icons.location_on_rounded, Icons.image_rounded];
 
   Future<void> _next() async {
     if (!_forms[_step].currentState!.validate()) return;
-    if (_step < 3) {
+    if (_step < 2) {
       setState(() => _step++);
       return;
     }
@@ -66,7 +69,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _submit() async {
     setState(() => _loading = true);
     try {
-      final m = enNum(mobile.text.trim());
+      final m = widget.mobile;
+      // sign-in is by SMS code, so the account gets a random password nobody needs to know
+      final rnd = Random.secure();
+      final pass = base64Url.encode(List<int>.generate(24, (_) => rnd.nextInt(256)));
       final files = <http.MultipartFile>[
         if (logo != null) logo!.toMultipart('logo'),
         if (letterhead != null) letterhead!.toMultipart('letterhead'),
@@ -76,8 +82,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           .create(
             body: {
               'mobile': m,
-              'password': pass.text,
-              'passwordConfirm': pass2.text,
+              'otp_proof': widget.proof,
+              'password': pass,
+              'passwordConfirm': pass,
               if (email.text.trim().isNotEmpty) 'email': email.text.trim(),
               'emailVisibility': false,
               'name': doctorName.text.trim(),
@@ -99,7 +106,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             },
             files: files,
           );
-      await Api.pb.collection('users').authWithPassword(m, pass.text);
+      await Api.pb.collection('users').authWithPassword(m, pass);
       if (!mounted) return;
       await context.read<AppState>().onLoggedIn();
       if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
@@ -128,7 +135,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: Row(
                   children: [
-                    for (var i = 0; i < 4; i++) ...[
+                    for (var i = 0; i < 3; i++) ...[
                       Expanded(
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 300),
@@ -139,7 +146,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                       ),
-                      if (i < 3) const SizedBox(width: 6),
+                      if (i < 2) const SizedBox(width: 6),
                     ],
                   ],
                 ),
@@ -151,7 +158,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     GlassIcon(_icons[_step], size: 44),
                     const SizedBox(width: 12),
                     Text(
-                      'مرحله ${faNum(_step + 1)} از ۴ — ${_titles[_step]}',
+                      'مرحله ${faNum(_step + 1)} از ۳ — ${_titles[_step]}',
                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                     ),
                   ],
@@ -176,8 +183,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ],
                     Expanded(
                       child: GradientButton(
-                        label: _step == 3 ? 'ثبت نهایی' : 'ادامه',
-                        icon: _step == 3 ? Icons.check_rounded : Icons.arrow_forward_rounded,
+                        label: _step == 2 ? 'ثبت نهایی' : 'ادامه',
+                        icon: _step == 2 ? Icons.check_rounded : Icons.arrow_forward_rounded,
                         loading: _loading,
                         onPressed: _next,
                       ),
@@ -198,45 +205,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
         return Form(
           key: _forms[0],
           child: Column(
-            children: [
-              Field(
-                mobile,
-                'شماره موبایل (نام کاربری)',
-                icon: Icons.phone_iphone_rounded,
-                required: true,
-                ltr: true,
-                keyboard: TextInputType.phone,
-                hint: '09xxxxxxxxx',
-                validator: mobileValidator,
-              ),
-              Field(
-                pass,
-                'رمز عبور',
-                icon: Icons.lock_rounded,
-                required: true,
-                ltr: true,
-                obscure: true,
-                validator: (s) => s.length < 8 ? 'حداقل ۸ کاراکتر' : null,
-              ),
-              Field(
-                pass2,
-                'تکرار رمز عبور',
-                icon: Icons.lock_outline_rounded,
-                required: true,
-                ltr: true,
-                obscure: true,
-                validator: (s) => s != pass.text ? 'رمزها یکسان نیستند' : null,
-              ),
-              const _Hint('با همین شماره موبایل و رمز عبور وارد اپ می‌شوید.'),
-            ],
-          ),
-        );
-      case 1:
-        return Form(
-          key: _forms[1],
-          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Glass(
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(
+                  children: [
+                    const Icon(Icons.verified_rounded, color: MP.success),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('شماره ${faNum(widget.mobile)} تایید شد', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+              ),
               const Text('نوع مرکز', style: TextStyle(fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
               ChoiceRow(options: clinicTypeLabels, value: clinicType, onChanged: (v) => setState(() => clinicType = v)),
@@ -277,9 +260,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ],
           ),
         );
-      case 2:
+      case 1:
         return Form(
-          key: _forms[2],
+          key: _forms[1],
           child: Column(
             children: [
               Field(city, 'شهر', icon: Icons.location_city_rounded, required: true),
@@ -293,7 +276,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
       default:
         return Form(
-          key: _forms[3],
+          key: _forms[2],
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

@@ -26,6 +26,7 @@ func main() {
 	registerHooks(app)
 
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
+		registerAuthRoutes(se)
 		registerRoutes(se)
 		return se.Next()
 	})
