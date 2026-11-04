@@ -88,30 +88,30 @@ jobs:
   release:
     # Publishes downloadable files on every build:
     #   - pushes to a branch  → pre-release "latest-build" (replaced each time)
-    #   - tags v* (v1.0.0...)  → a normal versioned release
+    #   - tags v*              → a normal versioned release
     needs: [backend, android]
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest-build' }}
+      REPO: ${{ github.repository }}
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-      - name: Replace previous latest-build
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        run: gh release delete latest-build --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.TAG }}
-          target_commitish: ${{ github.sha }}
-          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('Latest build ({0})', github.ref_name) }}
-          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-          make_latest: ${{ startsWith(github.ref, 'refs/tags/v') }}
-          body: |
-            Melopet build from `${{ github.sha }}`.
-            - `melopet.apk` — Android app
-            - `melopet-server-*` — backend server binaries
-          files: |
-            dist/melopet-apk/melopet.apk
-            dist/melopet-server/*
+      - name: Publish release
+        run: |
+          set -euo pipefail
+          files="dist/melopet-apk/melopet.apk dist/melopet-server/*"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            gh release create "$GITHUB_REF_NAME" $files --repo "$REPO" --title "$GITHUB_REF_NAME" --latest \
+              --notes "Melopet $GITHUB_REF_NAME: melopet.apk (Android app) and melopet-server-* (backend)."
+          else
+            # remove the previous latest-build release (published or draft) and its tag, then publish again
+            for id in $(gh api "repos/$REPO/releases" --paginate --jq '.[] | select(.tag_name=="latest-build") | .id'); do
+              gh api -X DELETE "repos/$REPO/releases/$id"
+            done
+            gh api -X DELETE "repos/$REPO/git/refs/tags/latest-build" || true
+            gh release create latest-build $files --repo "$REPO" --target "$GITHUB_SHA" --prerelease \
+              --title "Latest build ($GITHUB_REF_NAME)" \
+              --notes "Melopet build from $GITHUB_SHA: melopet.apk (Android app) and melopet-server-* (backend)."
+          fi
