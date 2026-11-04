@@ -156,7 +156,7 @@ class ChoiceRow extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
-        for (final e in options.entries) ChoiceChip(label: Text(e.value), selected: value == e.key, onSelected: (_) => onChanged(e.key)),
+        for (final e in options.entries) MPChoiceChip(label: e.value, selected: value == e.key, onSelected: (_) => onChanged(e.key)),
       ],
     );
   }

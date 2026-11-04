@@ -271,6 +271,40 @@ class StatusChip extends StatelessWidget {
   }
 }
 
+/// Selectable chip with explicit text/background colours, so its label is readable
+/// in both themes on every platform (never relies on inherited default text colours).
+class MPChoiceChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final ValueChanged<bool>? onSelected;
+  final Widget? avatar;
+  const MPChoiceChip({super.key, required this.label, required this.selected, this.onSelected, this.avatar});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final dark = isDark(context);
+    final style = TextStyle(
+      fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
+      color: selected ? cs.onPrimaryContainer : cs.onSurface,
+      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+    );
+    return ChoiceChip(
+      avatar: avatar,
+      label: Text(label, style: style),
+      labelStyle: style,
+      selected: selected,
+      onSelected: onSelected,
+      showCheckmark: true,
+      checkmarkColor: cs.primary,
+      selectedColor: cs.primaryContainer,
+      backgroundColor: dark ? Colors.white.withValues(alpha: .07) : Colors.white.withValues(alpha: .85),
+      surfaceTintColor: Colors.transparent,
+      side: BorderSide(color: selected ? cs.primary.withValues(alpha: .55) : cs.onSurface.withValues(alpha: .2)),
+    );
+  }
+}
+
 class SectionTitle extends StatelessWidget {
   final String title;
   final String? action;

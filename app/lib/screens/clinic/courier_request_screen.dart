@@ -414,18 +414,14 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
             children: [
               Padding(
                 padding: const EdgeInsetsDirectional.only(end: 6),
-                child: ChoiceChip(
-                  label: const Text('همه'),
-                  selected: _category == null,
-                  onSelected: (_) => setState(() => _category = null),
-                ),
+                child: MPChoiceChip(label: 'همه', selected: _category == null, onSelected: (_) => setState(() => _category = null)),
               ),
               for (final c in cats)
                 Padding(
                   padding: const EdgeInsetsDirectional.only(end: 6),
-                  child: ChoiceChip(
-                    avatar: Icon(categoryInfo(c).icon, size: 16, color: categoryInfo(c).color),
-                    label: Text(categoryInfo(c).label),
+                  child: MPChoiceChip(
+                    avatar: Icon(categoryInfo(c).icon, size: 16, color: readable(context, categoryInfo(c).color)),
+                    label: categoryInfo(c).label,
                     selected: _category == c,
                     onSelected: (_) => setState(() => _category = _category == c ? null : c),
                   ),
@@ -444,7 +440,11 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
                   Padding(
                     padding: const EdgeInsetsDirectional.only(end: 6),
                     child: InputChip(
-                      label: Text(c.code.isNotEmpty ? c.code : c.name),
+                      label: Text(
+                        c.code.isNotEmpty ? c.code : c.name,
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600),
+                      ),
+                      deleteIconColor: Theme.of(context).colorScheme.onSurface,
                       onDeleted: () => setState(() => _selected.remove(c.id)),
                       backgroundColor: MP.pink.withValues(alpha: .25),
                     ),

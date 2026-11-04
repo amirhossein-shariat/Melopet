@@ -90,7 +90,7 @@ class _ClinicsScreenState extends State<ClinicsScreen> {
                 for (final f in {'all': 'همه', 'pending': 'در انتظار تایید', ...tierLabels}.entries)
                   Padding(
                     padding: const EdgeInsetsDirectional.only(end: 8),
-                    child: ChoiceChip(label: Text(f.value), selected: _filter == f.key, onSelected: (_) => setState(() => _filter = f.key)),
+                    child: MPChoiceChip(label: f.value, selected: _filter == f.key, onSelected: (_) => setState(() => _filter = f.key)),
                   ),
               ],
             ),

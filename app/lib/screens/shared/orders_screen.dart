@@ -131,8 +131,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 for (final f in _filters.entries)
                   Padding(
                     padding: const EdgeInsetsDirectional.only(end: 8),
-                    child: ChoiceChip(
-                      label: Text(f.value),
+                    child: MPChoiceChip(
+                      label: f.value,
                       selected: _filter == f.key,
                       onSelected: (_) {
                         setState(() => _filter = f.key);

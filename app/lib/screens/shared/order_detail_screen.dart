@@ -695,8 +695,8 @@ class _AdminPanel extends StatelessWidget {
                   ),
                 ),
               ),
-              FilterChip(
-                label: const Text('تسویه شده'),
+              MPChoiceChip(
+                label: 'تسویه شده',
                 selected: order.getBoolValue('paid'),
                 onSelected: (v) async {
                   await Api.pb.collection('orders').update(order.id, body: {'paid': v});
