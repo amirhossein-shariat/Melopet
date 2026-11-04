@@ -46,6 +46,7 @@ Melopet/
 - روی صفحه ورود دو دکمه ورود سریع هست: **پنل کلینیک** و **پنل مدیر**. ورود با هر شماره `09...` و کد `1111` هم کار می‌کند (ثبت‌نام را می‌شود امتحان کرد).
 - داده‌ها فقط در حافظه مرورگر می‌مانند و با رفرش صفحه به حالت اول برمی‌گردند.
 - ساخت: `cd app && flutter build web --release --no-web-resources-cdn --pwa-strategy=none --dart-define=DEMO=true`
+- **آدرس ثابت (GitHub Pages):** `https://amirhossein-shariat.github.io/Melopet/` — هر تغییری در `app/` خودکار منتشر می‌شود (workflow: `Deploy web demo`). یک بار در Settings ← Pages ← Source گزینه **GitHub Actions** را انتخاب کنید.
 - داخل APK هم می‌شود حالت نمایشی را روشن کرد: روی صفحه ورود **روی لوگو انگشت را نگه دارید ← حالت نمایشی**.
 
 ## ورود با کد پیامکی

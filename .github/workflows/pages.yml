@@ -1,0 +1,52 @@
+name: Deploy web demo
+
+# Publishes the no-install demo (in-app fake backend, sample data) to GitHub Pages:
+#   https://<owner>.github.io/<repo>/
+# One-time setup: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+
+on:
+  push:
+    branches: [claude/veterinary-lab-app-tf6r1c, main]
+    paths: ["app/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.9"
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build web demo
+        run: >
+          flutter build web --release --no-web-resources-cdn --pwa-strategy=none
+          --base-href "/${{ github.event.repository.name }}/" --dart-define=DEMO=true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
