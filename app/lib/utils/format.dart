@@ -86,9 +86,9 @@ String relativeDay(DateTime d) {
 }
 
 String fileSize(num bytes) {
-  if (bytes < 1024) return '${faNum(bytes.toInt())} B';
-  if (bytes < 1024 * 1024) return '${faNum((bytes / 1024).toStringAsFixed(0))} KB';
-  return '${faNum((bytes / 1024 / 1024).toStringAsFixed(1))} MB';
+  if (bytes < 1024) return '${faNum(bytes.toInt())} بایت';
+  if (bytes < 1024 * 1024) return '${faNum((bytes / 1024).toStringAsFixed(0))} کیلوبایت';
+  return '${faNum((bytes / 1024 / 1024).toStringAsFixed(1))} مگابایت';
 }
 
 // ---------------------------------------------------------------- labels

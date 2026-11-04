@@ -44,6 +44,7 @@ ThemeData buildTheme(Brightness b) {
     secondary: dark ? MP.mint : MP.mintDeep,
     onSecondary: dark ? const Color(0xFF00382F) : Colors.white,
     secondaryContainer: dark ? const Color(0xFF1F4A42) : const Color(0xFFD7F3EC),
+    onSecondaryContainer: dark ? const Color(0xFFD7F3EC) : const Color(0xFF0E3B32),
     tertiary: dark ? MP.lavender : MP.lavenderDeep,
     surface: dark ? MP.darkSurface : Colors.white,
     onSurface: dark ? const Color(0xFFF5E9F0) : MP.ink,
@@ -104,7 +105,25 @@ ThemeData buildTheme(Brightness b) {
     ),
     chipTheme: base.chipTheme.copyWith(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      labelStyle: const TextStyle(fontFamily: _font),
+      // explicit colours: the default chip text can end up dark-on-dark / light-on-light
+      labelStyle: TextStyle(fontFamily: _font, color: scheme.onSurface),
+      secondaryLabelStyle: TextStyle(fontFamily: _font, color: scheme.onPrimaryContainer, fontWeight: FontWeight.w700),
+      backgroundColor: dark ? Colors.white.withValues(alpha: .06) : Colors.white.withValues(alpha: .7),
+      selectedColor: scheme.primaryContainer,
+      checkmarkColor: scheme.primary,
+      iconTheme: IconThemeData(color: scheme.onSurface.withValues(alpha: .8)),
+      side: BorderSide(color: scheme.onSurface.withValues(alpha: .16)),
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (st) => st.contains(WidgetState.selected) ? scheme.onPrimaryContainer : scheme.onSurface,
+        ),
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (st) => st.contains(WidgetState.selected) ? scheme.primaryContainer : Colors.transparent,
+        ),
+        side: WidgetStatePropertyAll(BorderSide(color: scheme.onSurface.withValues(alpha: .16))),
+      ),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,

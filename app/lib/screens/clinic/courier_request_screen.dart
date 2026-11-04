@@ -477,7 +477,7 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
                                 Text(c.name, style: const TextStyle(fontWeight: FontWeight.w700)),
                                 Text(
                                   [info.label, if (c.sampleType.isNotEmpty) c.sampleType].join(' • '),
-                                  style: TextStyle(fontSize: 11.5, color: info.color),
+                                  style: TextStyle(fontSize: 11.5, color: readable(context, info.color)),
                                 ),
                               ],
                             ),

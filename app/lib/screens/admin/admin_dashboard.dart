@@ -212,7 +212,7 @@ class _Stat extends StatelessWidget {
             children: [
               Text(
                 faNum(value),
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: color),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: readable(context, color)),
               ),
               Text(label, maxLines: 2, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
             ],

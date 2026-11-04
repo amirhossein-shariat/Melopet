@@ -24,8 +24,7 @@ class ChatScreen extends StatefulWidget {
   /// Admin: which clinic to talk to. Clinic: null (own conversation).
   final String? clinicId;
   final String? draft;
-  final double bottomInset;
-  const ChatScreen({super.key, this.clinicId, this.draft, this.bottomInset = 0});
+  const ChatScreen({super.key, this.clinicId, this.draft});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -415,7 +414,6 @@ class _ChatScreenState extends State<ChatScreen> {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: .7),
-          padding: EdgeInsets.only(bottom: widget.bottomInset),
           child: SafeArea(
             top: false,
             child: Column(
@@ -535,6 +533,7 @@ class _AttachOption extends StatelessWidget {
     child: Padding(
       padding: const EdgeInsets.all(8),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           GlassIcon(icon, color: color, size: 60),
           const SizedBox(height: 8),

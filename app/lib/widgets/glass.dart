@@ -7,6 +7,14 @@ import '../utils/format.dart';
 
 bool isDark(BuildContext c) => Theme.of(c).brightness == Brightness.dark;
 
+/// Brand/status colours are chosen for light surfaces; this keeps them legible as
+/// text or icons on whichever theme is active (lighter in dark mode, darker for pale colours in light mode).
+Color readable(BuildContext c, Color color) {
+  if (isDark(c)) return Color.lerp(color, Colors.white, .42)!;
+  final l = color.computeLuminance();
+  return l > .30 ? Color.lerp(color, Colors.black, ((l - .25) * 1.1).clamp(0.0, .55))! : color;
+}
+
 /// Soft, blurred colour blobs behind every screen — gives the glass cards
 /// something to refract.
 class BlobBackground extends StatelessWidget {
@@ -240,6 +248,7 @@ class StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = statusInfo(status);
+    final fg = readable(context, s.color);
     return Container(
       padding: EdgeInsets.symmetric(horizontal: dense ? 8 : 10, vertical: dense ? 3 : 5),
       decoration: BoxDecoration(
@@ -250,11 +259,11 @@ class StatusChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(s.icon, size: dense ? 13 : 15, color: s.color),
+          Icon(s.icon, size: dense ? 13 : 15, color: fg),
           const SizedBox(width: 4),
           Text(
             s.label,
-            style: TextStyle(color: s.color, fontSize: dense ? 11 : 12, fontWeight: FontWeight.w700),
+            style: TextStyle(color: fg, fontSize: dense ? 11 : 12, fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -377,7 +386,15 @@ class MPScaffold extends StatelessWidget {
 void toast(BuildContext context, String msg, {bool error = false}) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(msg), backgroundColor: error ? MP.danger : null));
+    ..showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
+          style: error ? const TextStyle(color: Colors.white, fontWeight: FontWeight.w600) : null,
+        ),
+        backgroundColor: error ? MP.danger : null,
+      ),
+    );
 }
 
 Future<bool> confirm(BuildContext context, String title, String body, {String ok = 'تایید'}) async {

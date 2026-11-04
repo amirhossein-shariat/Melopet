@@ -85,7 +85,11 @@ class _TestsScreenState extends State<TestsScreen> {
                                   for (final tier in ['gold', 'silver', 'bronze'])
                                     Text(
                                       '${tierLabels[tier]}: ${money(t.getDoubleValue('price_$tier'), unit: false)}',
-                                      style: TextStyle(fontSize: 11.5, color: tierColors[tier], fontWeight: FontWeight.w700),
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        color: readable(context, tierColors[tier]!),
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                 ],
                               ),

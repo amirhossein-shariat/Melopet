@@ -58,7 +58,7 @@ class _ClinicShellState extends State<ClinicShell> {
       HomeScreen(onNavigate: go),
       const OrdersScreen(),
       // built only while visible so incoming messages aren't auto-marked as read
-      _index == 2 ? const ChatScreen(bottomInset: 84) : const SizedBox(),
+      _index == 2 ? const ChatScreen() : const SizedBox(),
       const PromotionsScreen(),
       const ProfileScreen(),
     ];
@@ -67,20 +67,23 @@ class _ClinicShellState extends State<ClinicShell> {
         backgroundColor: Colors.transparent,
         extendBody: true,
         body: IndexedStack(index: _index, children: pages),
-        bottomNavigationBar: GlassNavBar(
-          index: _index,
-          onTap: (i) {
-            go(i);
-            if (i == 2) state.refreshCounters();
-          },
-          items: [
-            const NavItem(Icons.home_outlined, Icons.home_rounded, 'خانه'),
-            const NavItem(Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'سفارش‌ها'),
-            NavItem(Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'چت', badge: state.unreadChat),
-            const NavItem(Icons.local_offer_outlined, Icons.local_offer_rounded, 'پیشنهادها'),
-            const NavItem(Icons.person_outline_rounded, Icons.person_rounded, 'پروفایل'),
-          ],
-        ),
+        // hide the floating nav while the keyboard is open so it doesn't sit on top of the input
+        bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0
+            ? null
+            : GlassNavBar(
+                index: _index,
+                onTap: (i) {
+                  go(i);
+                  if (i == 2) state.refreshCounters();
+                },
+                items: [
+                  const NavItem(Icons.home_outlined, Icons.home_rounded, 'خانه'),
+                  const NavItem(Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'سفارش‌ها'),
+                  NavItem(Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'چت', badge: state.unreadChat),
+                  const NavItem(Icons.local_offer_outlined, Icons.local_offer_rounded, 'پیشنهادها'),
+                  const NavItem(Icons.person_outline_rounded, Icons.person_rounded, 'پروفایل'),
+                ],
+              ),
       ),
     );
   }
