@@ -1,19 +1,37 @@
+import 'dart:async';
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme.dart';
 import '../utils/format.dart';
 
 bool isDark(BuildContext c) => Theme.of(c).brightness == Brightness.dark;
 
-/// Brand/status colours are chosen for light surfaces; this keeps them legible as
-/// text or icons on whichever theme is active (lighter in dark mode, darker for pale colours in light mode).
-Color readable(BuildContext c, Color color) {
-  if (isDark(c)) return Color.lerp(color, Colors.white, .42)!;
-  final l = color.computeLuminance();
-  return l > .30 ? Color.lerp(color, Colors.black, ((l - .25) * 1.1).clamp(0.0, .55))! : color;
+double _contrast(Color a, Color b) {
+  final la = a.computeLuminance(), lb = b.computeLuminance();
+  return (la > lb ? la + .05 : lb + .05) / (la > lb ? lb + .05 : la + .05);
 }
+
+/// Brand/status colours are chosen for decoration; this returns a version of [color] that is
+/// legible as TEXT or ICON on the active theme's surface (>= 4.8:1), staying as close to the
+/// original hue as possible.
+Color readable(BuildContext c, Color color) {
+  final dark = isDark(c);
+  // glass cards sit on tinted blobs, so assume the worst-case surface of each theme
+  final surface = dark ? const Color(0xFF62505A) : const Color(0xFFEBDFF3);
+  final target = dark ? Colors.white : Colors.black;
+  for (var t = 0.0; t <= .9; t += .04) {
+    final cand = Color.lerp(color, target, t)!;
+    if (_contrast(cand, surface) >= 4.8) return cand;
+  }
+  return target;
+}
+
+/// Secondary text colour: clearly softer than body text but always readable.
+Color muted(BuildContext c) => Theme.of(c).colorScheme.onSurface.withValues(alpha: isDark(c) ? .78 : .76);
 
 /// Soft, blurred colour blobs behind every screen — gives the glass cards
 /// something to refract.
@@ -54,8 +72,8 @@ class BlobBackground extends StatelessWidget {
   }
 }
 
-/// Frosted glass surface.
-class Glass extends StatelessWidget {
+/// Frosted glass surface with hover (web/tablet) and press feedback.
+class Glass extends StatefulWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final double radius;
@@ -76,25 +94,78 @@ class Glass extends StatelessWidget {
   });
 
   @override
+  State<Glass> createState() => _GlassState();
+}
+
+class _GlassState extends State<Glass> {
+  bool _hover = false;
+  bool _down = false;
+  Timer? _downTimer;
+
+  @override
+  void dispose() {
+    _downTimer?.cancel();
+    super.dispose();
+  }
+
+  // The press effect starts after a short delay and is cancelled as soon as the touch
+  // turns into a scroll, so scrolling never makes cards flash or pop.
+  void _pointerDown() {
+    _downTimer?.cancel();
+    _downTimer = Timer(const Duration(milliseconds: 110), () {
+      if (mounted) setState(() => _down = true);
+    });
+  }
+
+  void _pointerEnd() {
+    _downTimer?.cancel();
+    if (_down && mounted) setState(() => _down = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final dark = isDark(context);
-    final br = BorderRadius.circular(radius);
+    final cs = Theme.of(context).colorScheme;
+    final tappable = widget.onTap != null;
+    final br = BorderRadius.circular(widget.radius);
+    final hovered = _hover && tappable;
+    final base = dark ? Colors.white.withValues(alpha: hovered ? .12 : .07) : Colors.white.withValues(alpha: hovered ? .86 : .72);
+    final edge = dark
+        ? Colors.white.withValues(alpha: hovered ? .26 : .12)
+        : (hovered ? cs.primary.withValues(alpha: .38) : MP.pinkDeep.withValues(alpha: .16));
     return Padding(
-      padding: margin ?? EdgeInsets.zero,
-      child: ClipRRect(
-        borderRadius: br,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-          child: Material(
-            color: tint ?? (dark ? Colors.white.withValues(alpha: .07) : Colors.white.withValues(alpha: .62)),
-            shape: RoundedRectangleBorder(
-              borderRadius: br,
-              side: BorderSide(color: dark ? Colors.white.withValues(alpha: .10) : Colors.white.withValues(alpha: .9)),
-            ),
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: br,
-              child: Padding(padding: padding, child: child),
+      padding: widget.margin ?? EdgeInsets.zero,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        cursor: tappable ? SystemMouseCursors.click : MouseCursor.defer,
+        child: AnimatedScale(
+          scale: !tappable ? 1 : (_down ? .976 : (hovered ? 1.012 : 1)),
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          child: ClipRRect(
+            borderRadius: br,
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: widget.blur, sigmaY: widget.blur),
+              child: Material(
+                animationDuration: const Duration(milliseconds: 180),
+                color: widget.tint ?? base,
+                shape: RoundedRectangleBorder(
+                  borderRadius: br,
+                  side: BorderSide(color: edge, width: 1.1),
+                ),
+                child: InkWell(
+                  onTap: widget.onTap,
+                  onTapDown: tappable ? (_) => _pointerDown() : null,
+                  onTapUp: tappable ? (_) => _pointerEnd() : null,
+                  onTapCancel: tappable ? _pointerEnd : null,
+                  borderRadius: br,
+                  splashColor: cs.primary.withValues(alpha: .10),
+                  highlightColor: Colors.transparent,
+                  hoverColor: Colors.transparent,
+                  child: Padding(padding: widget.padding, child: widget.child),
+                ),
+              ),
             ),
           ),
         ),
@@ -103,7 +174,12 @@ class Glass extends StatelessWidget {
   }
 }
 
-/// A "blurred icon": a glowing colour orb behind a frosted rounded square.
+/// An icon on a glowing colour orb inside a tinted rounded square.
+///
+/// The glow is a pre-computed radial gradient (no live blur filter), so it looks identical
+/// while scrolling — a live blur is re-cached when a scroll starts and made the colour jump.
+/// The square is tinted with the icon's own colour and outlined, so it stands out from the
+/// card behind it in both themes.
 class GlassIcon extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -113,44 +189,49 @@ class GlassIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = isDark(context);
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned(
-            right: size * .02,
-            bottom: size * .02,
-            child: ImageFiltered(
-              imageFilter: ImageFilter.blur(sigmaX: size * .16, sigmaY: size * .16),
+    final glyph = dark ? Color.lerp(color, Colors.white, .32)! : readable(context, color);
+    final radius = BorderRadius.circular(size * .32);
+    return RepaintBoundary(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              right: -size * .14,
+              bottom: -size * .16,
               child: Container(
-                width: size * .62,
-                height: size * .62,
+                width: size * 1.0,
+                height: size * 1.0,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: [color, color.withValues(alpha: .5)]),
+                  gradient: RadialGradient(
+                    colors: [
+                      color.withValues(alpha: dark ? .55 : .62),
+                      color.withValues(alpha: dark ? .22 : .26),
+                      color.withValues(alpha: 0),
+                    ],
+                    stops: const [0, .55, 1],
+                  ),
                 ),
               ),
             ),
-          ),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(size * .32),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                width: size,
-                height: size,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(size * .32),
-                  color: dark ? Colors.white.withValues(alpha: .08) : Colors.white.withValues(alpha: .45),
-                  border: Border.all(color: Colors.white.withValues(alpha: dark ? .14 : .8)),
-                ),
-                child: Icon(icon, color: dark ? Color.lerp(color, Colors.white, .35) : color, size: size * .46),
+            Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                color: dark
+                    ? Color.alphaBlend(color.withValues(alpha: .20), const Color(0xFF2A1D27).withValues(alpha: .86))
+                    : Color.alphaBlend(color.withValues(alpha: .15), Colors.white.withValues(alpha: .93)),
+                border: Border.all(color: color.withValues(alpha: dark ? .45 : .55), width: 1.2),
               ),
+              child: Icon(icon, color: glyph, size: size * .48),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -168,16 +249,16 @@ class GlassTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Glass(
       onTap: onTap,
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Badge(
             isLabelVisible: badge > 0,
             label: Text(faNum(badge)),
-            child: GlassIcon(icon, color: color),
+            child: GlassIcon(icon, color: color, size: 48),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
             label,
             textAlign: TextAlign.center,
@@ -191,7 +272,7 @@ class GlassTile extends StatelessWidget {
   }
 }
 
-class GradientButton extends StatelessWidget {
+class GradientButton extends StatefulWidget {
   final String label;
   final IconData? icon;
   final VoidCallback? onPressed;
@@ -200,37 +281,65 @@ class GradientButton extends StatelessWidget {
   const GradientButton({super.key, required this.label, this.icon, this.onPressed, this.loading = false, this.gradient = MP.brandGradient});
 
   @override
+  State<GradientButton> createState() => _GradientButtonState();
+}
+
+class _GradientButtonState extends State<GradientButton> {
+  bool _hover = false;
+  bool _down = false;
+
+  @override
   Widget build(BuildContext context) {
-    final enabled = onPressed != null && !loading;
+    final enabled = widget.onPressed != null && !widget.loading;
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 200),
-      opacity: enabled ? 1 : .6,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [BoxShadow(color: MP.pink.withValues(alpha: .45), blurRadius: 18, offset: const Offset(0, 8))],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(18),
-            onTap: enabled ? onPressed : null,
-            child: SizedBox(
-              height: 54,
-              child: Center(
-                child: loading
-                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: MP.plum))
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (icon != null) ...[Icon(icon, color: MP.plum), const SizedBox(width: 8)],
-                          Text(
-                            label,
-                            style: const TextStyle(color: MP.plum, fontWeight: FontWeight.w800, fontSize: 15.5),
+      opacity: enabled ? 1 : .78,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+        child: AnimatedScale(
+          scale: enabled ? (_down ? .97 : (_hover ? 1.015 : 1)) : 1,
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              gradient: widget.gradient,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: MP.pink.withValues(alpha: _hover && enabled ? .65 : .42),
+                  blurRadius: _hover && enabled ? 26 : 18,
+                  offset: Offset(0, _down ? 4 : 8),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: enabled ? widget.onPressed : null,
+                onHighlightChanged: (v) => setState(() => _down = v),
+                splashColor: Colors.white.withValues(alpha: .3),
+                highlightColor: Colors.transparent,
+                child: SizedBox(
+                  height: 54,
+                  child: Center(
+                    child: widget.loading
+                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: MP.plum))
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (widget.icon != null) ...[Icon(widget.icon, color: MP.plum), const SizedBox(width: 8)],
+                              Text(
+                                widget.label,
+                                style: const TextStyle(color: MP.plum, fontWeight: FontWeight.w800, fontSize: 15.5),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -360,7 +469,7 @@ class EmptyState extends StatelessWidget {
               Text(
                 subtitle!,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .6)),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .78)),
               ),
             ],
             if (action != null) ...[const SizedBox(height: 16), action!],
@@ -417,28 +526,52 @@ class MPScaffold extends StatelessWidget {
   }
 }
 
+/// Copies text and tells the user honestly whether it worked (a denied clipboard must not say "copied").
+Future<void> copyText(BuildContext context, String text, {String done = 'کپی شد'}) async {
+  try {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (context.mounted) toast(context, done);
+  } catch (_) {
+    if (context.mounted) toast(context, 'کپی انجام نشد؛ متن را نگه دارید و دستی کپی کنید', error: true);
+  }
+}
+
 void toast(BuildContext context, String msg, {bool error = false}) {
+  final dark = isDark(context);
+  // solid colours chosen to stand out from the pastel/dark background in both themes
+  final bg = error ? const Color(0xFFB3263E) : (dark ? const Color(0xFF3B2A36) : const Color(0xFF3D1630));
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(
       SnackBar(
-        content: Text(
-          msg,
-          style: error ? const TextStyle(color: Colors.white, fontWeight: FontWeight.w600) : null,
+        backgroundColor: bg,
+        duration: const Duration(milliseconds: 2600),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        content: Row(
+          children: [
+            Icon(error ? Icons.error_outline_rounded : Icons.check_circle_rounded, color: error ? Colors.white : MP.mint, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                msg,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
         ),
-        backgroundColor: error ? MP.danger : null,
       ),
     );
 }
 
-Future<bool> confirm(BuildContext context, String title, String body, {String ok = 'تایید'}) async {
+Future<bool> confirm(BuildContext context, String title, String body, {String ok = 'تایید', String cancel = 'انصراف'}) async {
   final r = await showDialog<bool>(
     context: context,
     builder: (c) => AlertDialog(
-      title: Text(title),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
       content: Text(body),
+      actionsAlignment: MainAxisAlignment.end,
       actions: [
-        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('انصراف')),
+        OutlinedButton(onPressed: () => Navigator.pop(c, false), child: Text(cancel)),
         FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(ok)),
       ],
     ),
@@ -480,4 +613,96 @@ Future<T?> showGlassSheet<T>(BuildContext context, Widget Function(BuildContext)
       ),
     ),
   );
+}
+
+/// Minimal gift mark (brand gradient) — replaces the gift emoji.
+class GiftMark extends StatelessWidget {
+  final double size;
+  const GiftMark({super.key, this.size = 30});
+
+  @override
+  Widget build(BuildContext context) => ShaderMask(
+    shaderCallback: (r) => MP.brandGradient.createShader(r),
+    blendMode: BlendMode.srcIn,
+    child: Icon(Icons.card_giftcard_rounded, size: size, color: Colors.white),
+  );
+}
+
+/// Small vector hand that waves a few times when it appears — replaces the 👋 emoji.
+class WavingHand extends StatefulWidget {
+  final double size;
+  const WavingHand({super.key, this.size = 22});
+
+  @override
+  State<WavingHand> createState() => _WavingHandState();
+}
+
+class _WavingHandState extends State<WavingHand> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..forward();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) {
+        // three quick waves that fade out
+        final t = _c.value;
+        final angle = sin(t * pi * 6) * .38 * (1 - t);
+        return Transform.rotate(angle: angle, alignment: Alignment.bottomRight, child: child);
+      },
+      child: ShaderMask(
+        shaderCallback: (r) => const LinearGradient(colors: [Color(0xFFFFB27A), Color(0xFFF08AAE)]).createShader(r),
+        blendMode: BlendMode.srcIn,
+        child: Icon(Icons.waving_hand_rounded, size: widget.size, color: Colors.white),
+      ),
+    );
+  }
+}
+
+/// Fades and slides its child in once, with a small delay per [index] (staggered lists).
+class Reveal extends StatefulWidget {
+  final int index;
+  final Widget child;
+  const Reveal({super.key, this.index = 0, required this.child});
+
+  @override
+  State<Reveal> createState() => _RevealState();
+}
+
+class _RevealState extends State<Reveal> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 520));
+  late final _curve = CurvedAnimation(parent: _c, curve: Curves.easeOutCubic);
+  Timer? _t;
+
+  @override
+  void initState() {
+    super.initState();
+    _t = Timer(Duration(milliseconds: 40 + min(widget.index, 9) * 70), () {
+      if (mounted) _c.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _t?.cancel();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _curve,
+      child: SlideTransition(
+        position: Tween(begin: const Offset(0, .07), end: Offset.zero).animate(_curve),
+        child: widget.child,
+      ),
+    );
+  }
 }

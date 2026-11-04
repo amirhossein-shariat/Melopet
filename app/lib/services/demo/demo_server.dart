@@ -55,7 +55,7 @@ class DemoServer {
     'picked_up': 'نمونه توسط پیک تحویل گرفته شد',
     'received': 'نمونه در آزمایشگاه دریافت شد',
     'in_progress': 'آزمایش در حال انجام است',
-    'ready': 'جواب آزمایش آماده شد ✅',
+    'ready': 'جواب آزمایش آماده شد',
     'cancelled': 'درخواست لغو شد',
   };
 
@@ -393,11 +393,11 @@ class DemoServer {
     String p;
     switch (_s(m, 'kind')) {
       case 'image':
-        p = '🖼 تصویر $text';
+        p = 'تصویر $text'.trim();
       case 'file':
-        p = '📎 ${_s(m, 'file_name')}';
+        p = 'فایل: ${_s(m, 'file_name')}';
       case 'voice':
-        p = '🎤 پیام صوتی';
+        p = 'پیام صوتی';
       default:
         p = text;
     }
@@ -635,7 +635,7 @@ class DemoServer {
         }
       case 'promotions':
         if (rec['active'] == true && rec['notify'] == true) {
-          notify(audience: 'clinics', title: '🎁 ${_s(rec, 'title')}', body: _s(rec, 'body'), type: 'promo', ref: rec['id']);
+          notify(audience: 'clinics', title: _s(rec, 'title'), body: _s(rec, 'body'), type: 'promo', ref: rec['id']);
         }
     }
   }
@@ -696,7 +696,7 @@ class DemoServer {
       }
     }
     if (c == 'users' && !oldApproved && rec['approved'] == true && rec['role'] == 'clinic') {
-      notify(user: rec['id'], title: 'حساب شما تایید شد 🎉', body: 'اکنون می‌توانید درخواست پیک ثبت کنید.');
+      notify(user: rec['id'], title: 'حساب شما تایید شد', body: 'اکنون می‌توانید درخواست پیک ثبت کنید.');
     }
     _emit(c, 'update', rec);
     return _ok(_expand(c, rec, ''));
@@ -943,7 +943,7 @@ class DemoServer {
     notify(
       audience: 'admins',
       type: 'order',
-      title: '🛵 درخواست پیک جدید${rec['urgent'] == true ? ' (فوری)' : ''}',
+      title: 'درخواست پیک جدید${rec['urgent'] == true ? ' (فوری)' : ''}',
       body:
           '${_s(clinic, 'clinic_name')} | ${_s(rec, 'pet_name')} (${species[_s(rec, 'species')] ?? ''}) | ${items.length} آزمایش | ${rec['code']}',
       ref: rec['id'],

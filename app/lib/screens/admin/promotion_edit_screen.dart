@@ -55,9 +55,7 @@ class _PromotionEditScreenState extends State<PromotionEditScreen> {
         if (notify) {
           await Api.pb
               .collection('notifications')
-              .create(
-                body: {'audience': 'clinics', 'type': 'promo', 'title': '🎁 ${title.text.trim()}', 'body': body.text.trim(), 'ref': p!.id},
-              );
+              .create(body: {'audience': 'clinics', 'type': 'promo', 'title': title.text.trim(), 'body': body.text.trim(), 'ref': p!.id});
         }
       }
       if (mounted) {

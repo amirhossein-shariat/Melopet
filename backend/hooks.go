@@ -15,7 +15,7 @@ var statusTitles = map[string]string{
 	"picked_up":        "نمونه توسط پیک تحویل گرفته شد",
 	"received":         "نمونه در آزمایشگاه دریافت شد",
 	"in_progress":      "آزمایش در حال انجام است",
-	"ready":            "جواب آزمایش آماده شد ✅",
+	"ready":            "جواب آزمایش آماده شد",
 	"cancelled":        "درخواست لغو شد",
 }
 
@@ -104,7 +104,7 @@ func registerHooks(app core.App) {
 			return err
 		}
 		if !wasApproved && e.Record.GetBool("approved") && e.Record.GetString("role") == "clinic" {
-			notify(e.App, e.Record.Id, "user", "general", "حساب شما تایید شد 🎉",
+			notify(e.App, e.Record.Id, "user", "general", "حساب شما تایید شد",
 				"اکنون می‌توانید درخواست پیک ثبت کنید.", "")
 		}
 		return nil
@@ -137,7 +137,7 @@ func registerHooks(app core.App) {
 		var items []map[string]any
 		_ = e.Record.UnmarshalJSONField("items", &items)
 		body := fmt.Sprintf("%s | %s (%s) | %d آزمایش | %s", name, e.Record.GetString("pet_name"), species, len(items), e.Record.GetString("code"))
-		notify(e.App, "", "admins", "order", "🛵 درخواست پیک جدید"+urgent, body, e.Record.Id)
+		notify(e.App, "", "admins", "order", "درخواست پیک جدید"+urgent, body, e.Record.Id)
 		return nil
 	})
 
@@ -195,11 +195,11 @@ func registerHooks(app core.App) {
 		preview := e.Record.GetString("text")
 		switch e.Record.GetString("kind") {
 		case "image":
-			preview = "🖼 تصویر " + preview
+			preview = "تصویر " + preview
 		case "file":
-			preview = "📎 " + e.Record.GetString("file_name")
+			preview = "فایل: " + e.Record.GetString("file_name")
 		case "voice":
-			preview = "🎤 پیام صوتی"
+			preview = "پیام صوتی"
 		}
 		preview = truncate(preview, 120)
 
@@ -230,7 +230,7 @@ func registerHooks(app core.App) {
 	// ---- promotions: broadcast notification -------------------------------
 	app.OnRecordAfterCreateSuccess("promotions").BindFunc(func(e *core.RecordEvent) error {
 		if e.Record.GetBool("active") && e.Record.GetBool("notify") {
-			notify(e.App, "", "clinics", "promo", "🎁 "+e.Record.GetString("title"),
+			notify(e.App, "", "clinics", "promo", e.Record.GetString("title"),
 				truncate(e.Record.GetString("body"), 200), e.Record.Id)
 		}
 		return e.Next()

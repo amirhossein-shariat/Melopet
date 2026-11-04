@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../services/api.dart';
 import '../../services/notifications.dart';
 import '../../state/app_state.dart';
+import '../../widgets/exit_guard.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/glass_nav.dart';
 import '../chat/chat_screen.dart';
@@ -58,24 +59,34 @@ class _AdminShellState extends State<AdminShell> {
       const ClinicsScreen(),
       const AdminMoreScreen(),
     ];
-    return BlobBackground(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        extendBody: true,
-        body: IndexedStack(index: _index, children: pages),
-        bottomNavigationBar: GlassNavBar(
-          index: _index,
-          onTap: (i) {
-            setState(() => _index = i);
-            state.refreshCounters();
-          },
-          items: [
-            const NavItem(Icons.space_dashboard_outlined, Icons.space_dashboard_rounded, 'داشبورد'),
-            const NavItem(Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'سفارش‌ها'),
-            NavItem(Icons.forum_outlined, Icons.forum_rounded, 'چت‌ها', badge: state.unreadChat),
-            const NavItem(Icons.local_hospital_outlined, Icons.local_hospital_rounded, 'همکاران'),
-            const NavItem(Icons.grid_view_outlined, Icons.grid_view_rounded, 'بیشتر'),
-          ],
+    return ExitGuard(
+      // Back from another tab goes to the home tab first; from home it asks before leaving
+      onBackFirst: () {
+        if (_index != 0) {
+          setState(() => _index = 0);
+          return true;
+        }
+        return false;
+      },
+      child: BlobBackground(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          extendBody: true,
+          body: IndexedStack(index: _index, children: pages),
+          bottomNavigationBar: GlassNavBar(
+            index: _index,
+            onTap: (i) {
+              setState(() => _index = i);
+              state.refreshCounters();
+            },
+            items: [
+              const NavItem(Icons.space_dashboard_outlined, Icons.space_dashboard_rounded, 'داشبورد'),
+              const NavItem(Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'سفارش‌ها'),
+              NavItem(Icons.forum_outlined, Icons.forum_rounded, 'چت‌ها', badge: state.unreadChat),
+              const NavItem(Icons.local_hospital_outlined, Icons.local_hospital_rounded, 'همکاران'),
+              const NavItem(Icons.grid_view_outlined, Icons.grid_view_rounded, 'بیشتر'),
+            ],
+          ),
         ),
       ),
     );

@@ -283,7 +283,7 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
               children: [
                 Text(
                   'شرح حال، علائم، داروهای مصرفی و تشخیص احتمالی را بنویسید یا ویس بگیرید. حداقل یکی الزامی است.',
-                  style: TextStyle(fontSize: 12.5, color: _historyError ? MP.danger : cs.onSurface.withValues(alpha: .7)),
+                  style: TextStyle(fontSize: 12.5, color: _historyError ? MP.danger : cs.onSurface.withValues(alpha: .78)),
                 ),
                 const SizedBox(height: 10),
                 TextField(

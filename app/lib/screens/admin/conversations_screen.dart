@@ -117,7 +117,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                               children: [
                                 CircleAvatar(
                                   radius: 26,
-                                  backgroundColor: MP.pink.withValues(alpha: .5),
+                                  backgroundColor: MP.pink,
                                   backgroundImage: clinic != null && clinic.getStringValue('logo').isNotEmpty
                                       ? NetworkImage(Api.fileUrl(clinic, 'logo', thumb: '200x200').toString())
                                       : null,

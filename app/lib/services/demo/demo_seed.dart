@@ -23,7 +23,13 @@ void seedDemoData(DemoServer s) {
     'website': 'melopet.example',
     'address': 'تهران، ونک، خیابان ملاصدرا، پلاک ۲۰ (آدرس نمونه)',
     'location': {'lat': 35.7575, 'lon': 51.4105},
-    'working_hours': 'شنبه تا پنجشنبه ۸ تا ۲۰',
+    'working_hours': 'شنبه تا پنجشنبه • ۰۸:۰۰ تا ۲۰:۰۰ • جمعه‌ها تعطیل • تعطیلات رسمی تعطیل',
+    'work_schedule': {
+      'days': [0, 1, 2, 3, 4, 5],
+      'from': '08:00',
+      'to': '20:00',
+      'closed_on_holidays': true,
+    },
     'about': 'ملوپت، آزمایشگاه تخصصی دامپزشکی با خدمات نمونه‌گیری در محل از طریق پیک.',
     'technical_manager': 'دکتر نمونه',
   });
@@ -71,7 +77,13 @@ void seedDemoData(DemoServer s) {
         'city': city,
         'address': address,
         'location': {'lat': lat, 'lon': lon},
-        'working_hours': 'هر روز ۹ تا ۲۱',
+        'working_hours': 'همه روزه • ۰۹:۰۰ تا ۲۱:۰۰ • تعطیلات رسمی باز',
+        'work_schedule': {
+          'days': [0, 1, 2, 3, 4, 5, 6],
+          'from': '09:00',
+          'to': '21:00',
+          'closed_on_holidays': false,
+        },
         'instagram': '',
         'letterhead_top': 45,
         'letterhead_bottom': 25,
@@ -496,20 +508,20 @@ void seedDemoData(DemoServer s) {
   s.notify(
     user: 'democlinic0001',
     type: 'result',
-    title: 'جواب آزمایش آماده شد ✅',
+    title: 'جواب آزمایش آماده شد',
     body: 'سفارش MP-10001 — ملو | برای مشاهده و دریافت PDF وارد شوید.',
     ref: s.col('orders').first['id'],
   );
   s.notify(
     audience: 'clinics',
     type: 'promo',
-    title: '🎁 ۲۰٪ تخفیف پنل کبدی',
+    title: '۲۰٪ تخفیف پنل کبدی',
     body: 'تا پایان آذر، پنل ALT + AST + ALP + GGT با ۲۰٪ تخفیف ویژه همکاران.',
   );
   s.notify(
     audience: 'admins',
     type: 'order',
-    title: '🛵 درخواست پیک جدید (فوری)',
+    title: 'درخواست پیک جدید (فوری)',
     body: 'بیمارستان دامپزشکی سپید | بتی (سگ) | 2 آزمایش | MP-10005',
   );
   s.notify(audience: 'admins', title: 'همکار جدید ثبت‌نام کرد', body: 'کلینیک آریا');

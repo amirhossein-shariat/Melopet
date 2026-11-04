@@ -117,7 +117,7 @@ class _CodeScreenState extends State<CodeScreen> {
                 children: [
                   const GlassIcon(Icons.sms_rounded, size: 76),
                   const SizedBox(height: 16),
-                  Text('کد ۴ رقمی ارسال‌شده به', style: TextStyle(color: cs.onSurface.withValues(alpha: .7))),
+                  Text('کد ۴ رقمی ارسال‌شده به', style: TextStyle(color: cs.onSurface.withValues(alpha: .78))),
                   const SizedBox(height: 4),
                   Text(
                     faNum(widget.mobile),

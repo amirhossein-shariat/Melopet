@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 class MP {
   static const pink = Color(0xFFF4A6C0); // brand pastel pink
   static const pinkSoft = Color(0xFFFCE4EC);
-  static const pinkDeep = Color(0xFFD9668F); // for icons / text on light bg
+  static const pinkDeep = Color(0xFFD9668F); // decorative: gradients, glows, fills
+  static const pinkText = Color(0xFFA32F5E); // accent for TEXT/icons on light surfaces (>= 4.5:1)
   static const mint = Color(0xFF8FD8C8); // complementary
   static const mintDeep = Color(0xFF2E9C86);
   static const lavender = Color(0xFFC7B5F2); // analogous accent
@@ -37,7 +38,7 @@ const _font = 'Vazirmatn';
 ThemeData buildTheme(Brightness b) {
   final dark = b == Brightness.dark;
   final scheme = ColorScheme.fromSeed(seedColor: MP.pink, brightness: b).copyWith(
-    primary: dark ? const Color(0xFFF7B6CE) : MP.pinkDeep,
+    primary: dark ? const Color(0xFFF7B6CE) : MP.pinkText,
     onPrimary: dark ? MP.plum : Colors.white,
     primaryContainer: dark ? const Color(0xFF5A2843) : MP.pinkSoft,
     onPrimaryContainer: dark ? const Color(0xFFFFD9E6) : MP.plum,
@@ -45,7 +46,7 @@ ThemeData buildTheme(Brightness b) {
     onSecondary: dark ? const Color(0xFF00382F) : Colors.white,
     secondaryContainer: dark ? const Color(0xFF1F4A42) : const Color(0xFFD7F3EC),
     onSecondaryContainer: dark ? const Color(0xFFD7F3EC) : const Color(0xFF0E3B32),
-    tertiary: dark ? MP.lavender : MP.lavenderDeep,
+    tertiary: dark ? MP.lavender : const Color(0xFF6A4FB8),
     surface: dark ? MP.darkSurface : Colors.white,
     onSurface: dark ? const Color(0xFFF5E9F0) : MP.ink,
     error: MP.danger,
@@ -57,10 +58,21 @@ ThemeData buildTheme(Brightness b) {
     colorScheme: scheme,
     fontFamily: _font,
     scaffoldBackgroundColor: dark ? MP.darkBg : MP.lightBg,
+    splashFactory: InkRipple.splashFactory,
   );
 
   final radius = BorderRadius.circular(18);
   return base.copyWith(
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: MPPageTransitions(),
+        TargetPlatform.iOS: MPPageTransitions(),
+        TargetPlatform.linux: MPPageTransitions(),
+        TargetPlatform.macOS: MPPageTransitions(),
+        TargetPlatform.windows: MPPageTransitions(),
+        TargetPlatform.fuchsia: MPPageTransitions(),
+      },
+    ),
     textTheme: base.textTheme.apply(fontFamily: _font),
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
@@ -125,12 +137,52 @@ ThemeData buildTheme(Brightness b) {
         side: WidgetStatePropertyAll(BorderSide(color: scheme.onSurface.withValues(alpha: .16))),
       ),
     ),
+    badgeTheme: const BadgeThemeData(
+      backgroundColor: Color(0xFFC4283F),
+      textColor: Colors.white,
+      textStyle: TextStyle(fontFamily: _font, fontWeight: FontWeight.w800, fontSize: 11),
+    ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: radius),
-      contentTextStyle: const TextStyle(fontFamily: _font),
+      backgroundColor: dark ? const Color(0xFF3B2A36) : const Color(0xFF3D1630),
+      contentTextStyle: const TextStyle(fontFamily: _font, color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: Colors.white.withValues(alpha: dark ? .16 : 0)),
+      ),
     ),
     dividerTheme: DividerThemeData(color: scheme.onSurface.withValues(alpha: .08)),
     bottomSheetTheme: const BottomSheetThemeData(backgroundColor: Colors.transparent, surfaceTintColor: Colors.transparent),
   );
+}
+
+/// Soft fade + slide + scale page transition (slides in from the reading-direction end).
+class MPPageTransitions extends PageTransitionsBuilder {
+  const MPPageTransitions();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+    return FadeTransition(
+      opacity: Tween(begin: 0.0, end: 1.0).animate(curved),
+      child: SlideTransition(
+        position: Tween(begin: Offset(rtl ? -.07 : .07, 0), end: Offset.zero).animate(curved),
+        child: ScaleTransition(
+          scale: Tween(begin: .985, end: 1.0).animate(curved),
+          child: FadeTransition(
+            // the page underneath dims slightly while a new one opens
+            opacity: Tween(begin: 1.0, end: .88).animate(CurvedAnimation(parent: secondaryAnimation, curve: Curves.easeOut)),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
 }

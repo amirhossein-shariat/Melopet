@@ -93,17 +93,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'سلام، دکتر ${me?.getStringValue('doctor_name') ?? ''} 👋',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'سلام، دکتر ${me?.getStringValue('doctor_name') ?? ''}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const WavingHand(),
+                        ],
                       ),
                       Text(
                         me?.getStringValue('clinic_name') ?? '',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: cs.onSurface.withValues(alpha: .6), fontSize: 12.5),
+                        style: TextStyle(color: cs.onSurface.withValues(alpha: .78), fontSize: 12.5),
                       ),
                     ],
                   ),
@@ -145,46 +153,52 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
 
             // hero: courier request
-            _CourierHero(enabled: state.approved, onTap: _requestCourier),
+            Reveal(
+              index: 0,
+              child: _CourierHero(enabled: state.approved, onTap: _requestCourier),
+            ),
             const SizedBox(height: 18),
 
             // quick actions
-            GridView.count(
-              padding: EdgeInsets.zero,
-              crossAxisCount: 4,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: .82,
-              children: [
-                GlassTile(icon: Icons.receipt_long_rounded, label: 'سفارش‌ها', color: MP.lavenderDeep, onTap: () => widget.onNavigate(1)),
-                GlassTile(
-                  icon: Icons.price_change_rounded,
-                  label: 'تعرفه‌ها',
-                  color: MP.mintDeep,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PriceListScreen())),
-                ),
-                GlassTile(
-                  icon: Icons.forum_rounded,
-                  label: 'چت',
-                  color: MP.pinkDeep,
-                  badge: state.unreadChat,
-                  onTap: () => widget.onNavigate(2),
-                ),
-                GlassTile(
-                  icon: Icons.support_agent_rounded,
-                  label: 'تماس با ما',
-                  color: MP.peachDeep,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ContactScreen())),
-                ),
-              ],
+            Reveal(
+              index: 1,
+              child: GridView.count(
+                padding: EdgeInsets.zero,
+                crossAxisCount: 4,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: .76,
+                children: [
+                  GlassTile(icon: Icons.receipt_long_rounded, label: 'سفارش‌ها', color: MP.lavenderDeep, onTap: () => widget.onNavigate(1)),
+                  GlassTile(
+                    icon: Icons.price_change_rounded,
+                    label: 'تعرفه‌ها',
+                    color: MP.mintDeep,
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PriceListScreen())),
+                  ),
+                  GlassTile(
+                    icon: Icons.forum_rounded,
+                    label: 'چت',
+                    color: MP.pinkDeep,
+                    badge: state.unreadChat,
+                    onTap: () => widget.onNavigate(2),
+                  ),
+                  GlassTile(
+                    icon: Icons.support_agent_rounded,
+                    label: 'تماس با ما',
+                    color: MP.peachDeep,
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ContactScreen())),
+                  ),
+                ],
+              ),
             ),
 
             if (_promos.isNotEmpty) ...[
               SectionTitle('پیشنهادهای ویژه', action: 'همه', onAction: () => widget.onNavigate(3)),
               SizedBox(
-                height: 150,
+                height: 170,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: _promos.length,
@@ -209,7 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               )
             else
-              for (final o in _active.take(5)) OrderTile(o),
+              for (final (i, o) in _active.take(5).indexed) Reveal(index: 3 + i, child: OrderTile(o)),
           ],
         ),
       ),
@@ -341,9 +355,9 @@ class OrderTile extends StatelessWidget {
                         margin: const EdgeInsetsDirectional.only(end: 6),
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                         decoration: BoxDecoration(color: MP.danger.withValues(alpha: .15), borderRadius: BorderRadius.circular(8)),
-                        child: const Text(
+                        child: Text(
                           'فوری',
-                          style: TextStyle(color: MP.danger, fontSize: 10.5, fontWeight: FontWeight.w800),
+                          style: TextStyle(color: readable(context, MP.danger), fontSize: 10.5, fontWeight: FontWeight.w800),
                         ),
                       ),
                     StatusChip(status, dense: true),
@@ -356,13 +370,13 @@ class OrderTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textDirection: TextDirection.ltr,
                   textAlign: TextAlign.right,
-                  style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: .7)),
+                  style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: .78)),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '${faNum(order.getStringValue('code'))} • ${jDateTime(parseDate(order.getStringValue('created')))}'
                   '${showClinic && order.getStringValue('pet_name').isNotEmpty ? ' • ${order.getStringValue('pet_name')}' : ''}',
-                  style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: .5)),
+                  style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: .78)),
                 ),
               ],
             ),

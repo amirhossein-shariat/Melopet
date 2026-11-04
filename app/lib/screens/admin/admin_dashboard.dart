@@ -146,7 +146,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               physics: const NeverScrollableScrollPhysics(),
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
-              childAspectRatio: .8,
+              childAspectRatio: .76,
               children: [
                 GlassTile(
                   icon: Icons.science_rounded,
@@ -179,9 +179,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
             if (_stats == null)
               const Padding(padding: EdgeInsets.all(24), child: Loading())
             else if (_new.isEmpty)
-              const Glass(child: Text('سفارش بازی وجود ندارد 🎉'))
+              Glass(
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle_rounded, color: readable(context, MP.success)),
+                    const SizedBox(width: 10),
+                    const Text('سفارش بازی وجود ندارد'),
+                  ],
+                ),
+              )
             else
-              for (final o in _new) OrderTile(o, showClinic: true),
+              for (final (i, o) in _new.indexed) Reveal(index: 2 + i, child: OrderTile(o, showClinic: true)),
           ],
         ),
       ),

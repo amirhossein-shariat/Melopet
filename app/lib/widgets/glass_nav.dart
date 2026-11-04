@@ -33,7 +33,7 @@ class GlassNavBar extends StatelessWidget {
           child: Container(
             height: 68,
             decoration: BoxDecoration(
-              color: dark ? Colors.white.withValues(alpha: .08) : Colors.white.withValues(alpha: .7),
+              color: dark ? const Color(0xFF241A22).withValues(alpha: .86) : Colors.white.withValues(alpha: .82),
               borderRadius: BorderRadius.circular(26),
               border: Border.all(color: Colors.white.withValues(alpha: dark ? .12 : .9)),
             ),
@@ -57,9 +57,14 @@ class GlassNavBar extends StatelessWidget {
                             child: Badge(
                               isLabelVisible: items[i].badge > 0,
                               label: Text(faNum(items[i].badge)),
-                              child: Icon(
-                                i == index ? items[i].activeIcon : items[i].icon,
-                                color: i == index ? cs.primary : cs.onSurface.withValues(alpha: .55),
+                              child: AnimatedScale(
+                                scale: i == index ? 1.16 : 1,
+                                duration: const Duration(milliseconds: 280),
+                                curve: Curves.easeOutBack,
+                                child: Icon(
+                                  i == index ? items[i].activeIcon : items[i].icon,
+                                  color: i == index ? readable(context, cs.primary) : cs.onSurface.withValues(alpha: .8),
+                                ),
                               ),
                             ),
                           ),
@@ -69,7 +74,7 @@ class GlassNavBar extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: i == index ? FontWeight.w800 : FontWeight.w500,
-                              color: i == index ? cs.primary : cs.onSurface.withValues(alpha: .6),
+                              color: i == index ? readable(context, cs.primary) : cs.onSurface.withValues(alpha: .8),
                             ),
                           ),
                         ],

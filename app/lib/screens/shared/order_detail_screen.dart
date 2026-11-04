@@ -12,9 +12,11 @@ import '../../utils/results.dart';
 import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/location.dart';
+import '../../widgets/logo.dart';
 import '../../widgets/voice.dart';
 import '../admin/result_entry_screen.dart';
 import '../chat/chat_screen.dart';
+import '../clinic/profile_screen.dart' show LetterheadScreen;
 
 class OrderDetailScreen extends StatefulWidget {
   final String orderId;
@@ -188,23 +190,105 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                   ),
                 if (o.getBoolValue('urgent'))
-                  const Text(
-                    '⚡ فوری',
-                    style: TextStyle(color: MP.danger, fontWeight: FontWeight.w800, fontSize: 12),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.bolt_rounded, size: 16, color: readable(context, MP.danger)),
+                      const SizedBox(width: 2),
+                      Text(
+                        'فوری',
+                        style: TextStyle(color: readable(context, MP.danger), fontWeight: FontWeight.w800, fontSize: 12),
+                      ),
+                    ],
                   ),
                 if (o.getStringValue('courier_name').isNotEmpty)
                   InkWell(
                     onTap: () => launchUrl(Uri.parse('tel:${o.getStringValue('courier_phone')}')),
                     child: Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        '🛵 پیک: ${o.getStringValue('courier_name')}  ${faNum(o.getStringValue('courier_phone'))}',
-                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.delivery_dining_rounded, size: 18, color: readable(context, MP.peachDeep)),
+                          const SizedBox(width: 4),
+                          Text(
+                            'پیک: ${o.getStringValue('courier_name')}  ${faNum(o.getStringValue('courier_phone'))}',
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                          ),
+                        ],
                       ),
                     ),
                   ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Download options: two clearly different PDFs (Melopet's letterhead vs the clinic's own), then Excel / print.
+  Widget _exportSection() {
+    // whose letterhead? the viewing clinic's own — or, for the lab, the clinic of this order
+    final owner = Api.isAdmin ? _clinic : Api.me;
+    final hasOwn = owner != null && owner.getStringValue('letterhead').isNotEmpty;
+    final ownThumb = hasOwn ? Api.fileUrl(owner, 'letterhead').toString() : null;
+    return Glass(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('دریافت جواب به صورت PDF', style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 10),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _PdfCard(
+                    title: 'با سربرگ ملوپت',
+                    subtitle: 'سربرگ رسمی آزمایشگاه ملوپت',
+                    color: MP.pinkDeep,
+                    preview: const MelopetLogo(size: 54),
+                    onTap: () => _pdf(letterhead: false),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _PdfCard(
+                    title: 'با سربرگ مجموعه',
+                    subtitle: hasOwn
+                        ? 'روی سربرگی که آپلود کرده‌اید'
+                        : (Api.isAdmin ? 'این مجموعه سربرگی آپلود نکرده' : 'سربرگی آپلود نکرده‌اید — لمس کنید تا آپلود شود'),
+                    color: MP.lavenderDeep,
+                    preview: hasOwn
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              ownThumb!,
+                              width: 42,
+                              height: 56,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => const Icon(Icons.article_rounded),
+                            ),
+                          )
+                        : const Icon(Icons.upload_file_rounded, size: 34),
+                    dimmed: !hasOwn,
+                    onTap: hasOwn
+                        ? () => _pdf(letterhead: true)
+                        : (Api.isAdmin ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LetterheadScreen()))),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _MiniAction(Icons.table_view_rounded, 'خروجی اکسل', MP.mintDeep, _excel)),
+              const SizedBox(width: 10),
+              Expanded(child: _MiniAction(Icons.print_rounded, 'چاپ', MP.peachDeep, () => _pdf(letterhead: hasOwn, print: true))),
+            ],
           ),
         ],
       ),
@@ -220,26 +304,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SectionTitle(ready ? 'جواب آزمایش' : 'پیش‌نمایش جواب (منتشر نشده)'),
-        if (ready)
-          Glass(
-            padding: const EdgeInsets.all(12),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-                _ActionBtn(Icons.picture_as_pdf_rounded, 'PDF با سربرگ', MP.pinkDeep, () => _pdf(letterhead: true)),
-                _ActionBtn(Icons.description_rounded, 'PDF ملوپت', MP.lavenderDeep, () => _pdf(letterhead: false)),
-                _ActionBtn(Icons.table_view_rounded, 'اکسل', MP.mintDeep, _excel),
-                _ActionBtn(Icons.print_rounded, 'چاپ', MP.peachDeep, () => _pdf(letterhead: true, print: true)),
-              ],
-            ),
-          ),
-        if (ready && !Api.isAdmin && (Api.me?.getStringValue('letterhead').isEmpty ?? true))
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
-            child: Text('💡 سربرگ مجموعه را در پروفایل آپلود کنید تا جواب روی سربرگ خودتان ساخته شود.', style: TextStyle(fontSize: 11.5)),
-          ),
+        if (ready) _exportSection(),
         const SizedBox(height: 10),
         for (final t in results) ResultCard(t),
         if (o.getStringValue('lab_comment').isNotEmpty)
@@ -302,7 +367,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 children: [
                   SizedBox(
                     width: 110,
-                    child: Text(r.$1, style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .6))),
+                    child: Text(r.$1, style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .78))),
                   ),
                   Expanded(
                     child: Text(faNum(r.$2), style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -362,11 +427,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             ],
           ),
           if (o.getBoolValue('paid'))
-            const Align(
+            Align(
               alignment: AlignmentDirectional.centerEnd,
-              child: Text(
-                '✓ تسویه شده',
-                style: TextStyle(color: MP.success, fontWeight: FontWeight.w700),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle_rounded, size: 18, color: readable(context, MP.success)),
+                  const SizedBox(width: 4),
+                  Text(
+                    'تسویه شده',
+                    style: TextStyle(color: readable(context, MP.success), fontWeight: FontWeight.w700),
+                  ),
+                ],
               ),
             ),
         ],
@@ -375,35 +447,87 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 }
 
-class _ActionBtn extends StatelessWidget {
+class _PdfCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Color color;
+  final Widget preview;
+  final VoidCallback? onTap;
+  final bool dimmed;
+  const _PdfCard({
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.preview,
+    required this.onTap,
+    this.dimmed = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = readable(context, color);
+    return Glass(
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+      tint: color.withValues(alpha: dimmed ? .05 : .10),
+      child: Column(
+        children: [
+          SizedBox(height: 58, child: Center(child: preview)),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.picture_as_pdf_rounded, size: 18, color: fg),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  'PDF',
+                  style: TextStyle(fontWeight: FontWeight.w900, color: fg),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11.5, height: 1.5, color: muted(context)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniAction extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
   final VoidCallback onTap;
-  const _ActionBtn(this.icon, this.label, this.color, this.onTap);
+  const _MiniAction(this.icon, this.label, this.color, this.onTap);
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 76,
-    child: InkWell(
-      borderRadius: BorderRadius.circular(16),
+  Widget build(BuildContext context) {
+    return Glass(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Column(
-          children: [
-            GlassIcon(icon, color: color, size: 46),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
+      radius: 16,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 20, color: readable(context, color)),
+          const SizedBox(width: 8),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+        ],
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// Status progress with timestamps.
@@ -547,14 +671,15 @@ class ResultCard extends StatelessWidget {
                                     fontWeight: FontWeight.w800,
                                     fontSize: 13,
                                     color: p.flag == Flag.high
-                                        ? MP.danger
+                                        ? readable(context, MP.danger)
                                         : p.flag == Flag.low
-                                        ? const Color(0xFF3F7FD0)
+                                        ? readable(context, const Color(0xFF3F7FD0))
                                         : null,
                                   ),
                                 ),
-                                if (p.flag == Flag.high) const Icon(Icons.arrow_upward_rounded, size: 14, color: MP.danger),
-                                if (p.flag == Flag.low) const Icon(Icons.arrow_downward_rounded, size: 14, color: Color(0xFF3F7FD0)),
+                                if (p.flag == Flag.high) Icon(Icons.arrow_upward_rounded, size: 14, color: readable(context, MP.danger)),
+                                if (p.flag == Flag.low)
+                                  Icon(Icons.arrow_downward_rounded, size: 14, color: readable(context, const Color(0xFF3F7FD0))),
                               ],
                             ),
                           ),

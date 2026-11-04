@@ -6,7 +6,9 @@ import '../../state/app_state.dart';
 import '../../theme.dart';
 import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
+import '../../utils/schedule.dart';
 import '../../widgets/location.dart';
+import '../../widgets/work_schedule.dart';
 
 import 'package:latlong2/latlong.dart';
 
@@ -97,23 +99,30 @@ class _LabSettingsScreenState extends State<LabSettingsScreen> {
     'email': 'ایمیل',
     'website': 'وب‌سایت',
     'address': 'آدرس',
-    'working_hours': 'ساعات کاری',
     'about': 'درباره ما',
   };
   late final s = context.read<AppState>().settings;
   late final c = {for (final f in _fields.keys) f: TextEditingController(text: s?.getStringValue(f))};
   bool _saving = false;
   late LatLng? location = geoOf(s, 'location');
+  late WorkSchedule schedule = WorkSchedule.fromJson(s?.data['work_schedule']);
+  final _form = GlobalKey<FormState>();
 
   Future<void> _save() async {
     if (s == null) return;
+    if (!_form.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
       await Api.pb
           .collection('settings')
           .update(
             s!.id,
-            body: {for (final e in c.entries) e.key: e.value.text.trim(), if (location != null) 'location': geoJson(location!)},
+            body: {
+              for (final e in c.entries) e.key: e.value.text.trim(),
+              'working_hours': schedule.summary,
+              'work_schedule': schedule.toJson(),
+              if (location != null) 'location': geoJson(location!),
+            },
           );
       if (!mounted) return;
       await context.read<AppState>().loadSettings();
@@ -132,23 +141,27 @@ class _LabSettingsScreenState extends State<LabSettingsScreen> {
   Widget build(BuildContext context) {
     return MPScaffold(
       title: 'اطلاعات آزمایشگاه',
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          for (final e in _fields.entries)
-            Field(
-              c[e.key]!,
-              e.value,
-              maxLines: e.key == 'about' || e.key == 'address' ? 3 : 1,
-              ltr: const ['phone', 'mobile', 'whatsapp', 'telegram', 'instagram', 'email', 'website'].contains(e.key),
+      body: Form(
+        key: _form,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            for (final e in _fields.entries)
+              Field(
+                c[e.key]!,
+                e.value,
+                maxLines: e.key == 'about' || e.key == 'address' ? 3 : 1,
+                ltr: const ['phone', 'mobile', 'whatsapp', 'telegram', 'instagram', 'email', 'website'].contains(e.key),
+              ),
+            WorkScheduleField(initial: schedule, onChanged: (s) => schedule = s),
+            LocationField(
+              title: 'لوکیشن آزمایشگاه (در «تماس با ما» و مسیریابی نشان)',
+              value: location,
+              onChanged: (p) => setState(() => location = p),
             ),
-          LocationField(
-            title: 'لوکیشن آزمایشگاه (در «تماس با ما» و مسیریابی نشان)',
-            value: location,
-            onChanged: (p) => setState(() => location = p),
-          ),
-          GradientButton(label: 'ذخیره', icon: Icons.save_rounded, loading: _saving, onPressed: _save),
-        ],
+            GradientButton(label: 'ذخیره', icon: Icons.save_rounded, loading: _saving, onPressed: _save),
+          ],
+        ),
       ),
     );
   }

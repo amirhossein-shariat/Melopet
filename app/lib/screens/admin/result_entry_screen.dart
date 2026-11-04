@@ -107,7 +107,7 @@ class _ResultEntryScreenState extends State<ResultEntryScreen> {
             body: {'results': encodeResults(_results), 'lab_comment': _comment.text.trim(), if (publish) 'status': 'ready'},
           );
       if (!mounted) return;
-      toast(context, publish ? 'جواب منتشر شد و برای همکار اعلان ارسال شد ✅' : 'ذخیره شد');
+      toast(context, publish ? 'جواب منتشر شد و برای همکار اعلان ارسال شد' : 'ذخیره شد');
       if (publish) Navigator.pop(context);
     } catch (e) {
       if (mounted) toast(context, Api.error(e), error: true);

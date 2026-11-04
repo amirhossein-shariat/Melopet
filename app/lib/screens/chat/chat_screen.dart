@@ -274,7 +274,7 @@ class _ChatScreenState extends State<ChatScreen> {
         Scaffold(
           backgroundColor: Colors.transparent,
           appBar: AppBar(
-            titleSpacing: 0,
+            titleSpacing: 16,
             centerTitle: false,
             flexibleSpace: ClipRect(
               child: BackdropFilter(
@@ -289,14 +289,14 @@ class _ChatScreenState extends State<ChatScreen> {
                 else if (_admin)
                   CircleAvatar(backgroundColor: MP.lavender, child: Text(peerName.isNotEmpty ? peerName.characters.first : '?'))
                 else
-                  const MelopetLogo(size: 40),
+                  const MelopetLogo(size: 40, circle: true),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(peerName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                      Text(peerSub, style: TextStyle(fontSize: 11.5, color: cs.onSurface.withValues(alpha: .6))),
+                      Text(peerSub, style: TextStyle(fontSize: 11.5, color: cs.onSurface.withValues(alpha: .78))),
                     ],
                   ),
                 ),
@@ -383,9 +383,8 @@ class _ChatScreenState extends State<ChatScreen> {
               leading: const Icon(Icons.copy_rounded),
               title: const Text('کپی متن'),
               onTap: () {
-                Clipboard.setData(ClipboardData(text: m.getStringValue('text')));
                 Navigator.pop(c);
-                toast(context, 'کپی شد');
+                copyText(context, m.getStringValue('text'));
               },
             ),
           if (m.getStringValue('file').isNotEmpty)
@@ -511,11 +510,11 @@ class _ChatScreenState extends State<ChatScreen> {
 String _preview(RecordModel m) {
   switch (m.getStringValue('kind')) {
     case 'image':
-      return '🖼 تصویر ${m.getStringValue('text')}';
+      return 'تصویر ${m.getStringValue('text')}'.trim();
     case 'file':
-      return '📎 ${m.getStringValue('file_name')}';
+      return 'فایل: ${m.getStringValue('file_name')}';
     case 'voice':
-      return '🎤 پیام صوتی';
+      return 'پیام صوتی';
   }
   return m.getStringValue('text');
 }
@@ -632,13 +631,13 @@ class _Bubble extends StatelessWidget {
     final meta = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(time, style: TextStyle(fontSize: 10.5, color: cs.onSurface.withValues(alpha: .55))),
+        Text(time, style: TextStyle(fontSize: 10.5, color: cs.onSurface.withValues(alpha: .78))),
         if (mine) ...[
           const SizedBox(width: 3),
           Icon(
             read ? Icons.done_all_rounded : Icons.done_rounded,
             size: 15,
-            color: read ? MP.mintDeep : cs.onSurface.withValues(alpha: .5),
+            color: read ? MP.mintDeep : cs.onSurface.withValues(alpha: .78),
           ),
         ],
       ],
@@ -739,29 +738,32 @@ class _Bubble extends StatelessWidget {
         child: Container(
           margin: EdgeInsets.only(top: 2, bottom: tail ? 6 : 2, left: mine ? 48 : 0, right: mine ? 0 : 48),
           padding: EdgeInsets.all(kind == 'image' ? 4 : 10),
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * .78),
+          // as wide as the content needs (short messages stay compact), within sensible limits
+          constraints: BoxConstraints(minWidth: 76, maxWidth: MediaQuery.of(context).size.width * .78),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: radius,
             boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .05), blurRadius: 6, offset: const Offset(0, 2))],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (reply != null)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                  decoration: BoxDecoration(
-                    color: cs.primary.withValues(alpha: .10),
-                    borderRadius: BorderRadius.circular(8),
-                    border: BorderDirectional(start: BorderSide(color: cs.primary, width: 3)),
+          child: IntrinsicWidth(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (reply != null)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                    decoration: BoxDecoration(
+                      color: cs.primary.withValues(alpha: .10),
+                      borderRadius: BorderRadius.circular(8),
+                      border: BorderDirectional(start: BorderSide(color: cs.primary, width: 3)),
+                    ),
+                    child: Text(_preview(reply), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
                   ),
-                  child: Text(_preview(reply), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
-                ),
-              content,
-            ],
+                content,
+              ],
+            ),
           ),
         ),
       ),

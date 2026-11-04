@@ -9,7 +9,9 @@ import '../../theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
+import '../../utils/schedule.dart';
 import '../../widgets/location.dart';
+import '../../widgets/work_schedule.dart';
 import '../../widgets/logo.dart';
 
 import 'package:latlong2/latlong.dart';
@@ -210,7 +212,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       'contact_mobile',
       'city',
       'address',
-      'working_hours',
       'instagram',
       'email',
     ])
@@ -219,6 +220,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late String type = u.getStringValue('clinic_type').isEmpty ? 'clinic' : u.getStringValue('clinic_type');
   PickedBytes? logo;
   late LatLng? location = geoOf(u, 'location');
+  late WorkSchedule schedule = WorkSchedule.fromJson(u.data['work_schedule']);
   final _form = GlobalKey<FormState>();
   bool _saving = false;
 
@@ -232,7 +234,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           .collection('users')
           .update(
             u.id,
-            body: {...body, 'clinic_type': type, 'name': body['doctor_name'], if (location != null) 'location': geoJson(location!)},
+            body: {
+              ...body,
+              'clinic_type': type,
+              'name': body['doctor_name'],
+              'working_hours': schedule.summary,
+              'work_schedule': schedule.toJson(),
+              if (location != null) 'location': geoJson(location!),
+            },
             files: [if (logo != null) logo!.toMultipart('logo')],
           );
       if (!mounted) return;
@@ -279,7 +288,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             Field(c['city']!, 'شهر', icon: Icons.location_city_rounded),
             LocationField(title: 'لوکیشن مجموعه روی نقشه', value: location, onChanged: (p) => setState(() => location = p)),
             Field(c['address']!, 'آدرس', maxLines: 3, required: true, icon: Icons.location_on_rounded),
-            Field(c['working_hours']!, 'ساعات کاری', icon: Icons.schedule_rounded),
+            WorkScheduleField(initial: schedule, onChanged: (s) => schedule = s),
             Field(c['instagram']!, 'اینستاگرام', ltr: true, icon: Icons.camera_alt_rounded),
             Field(c['email']!, 'ایمیل', ltr: true, icon: Icons.alternate_email_rounded),
             const SizedBox(height: 8),

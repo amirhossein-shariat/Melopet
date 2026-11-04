@@ -8,9 +8,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../theme.dart';
 import 'glass.dart';
 
-/// Map tiles. OpenStreetMap works without an API key; to use Neshan's own
-/// tiles later, swap this template (Neshan needs a map key from platform.neshan.org).
-const kTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+/// Map tiles. OpenStreetMap needs no key but may be unreachable without a VPN in some
+/// networks (the picker then explains it and still works with GPS). Set another provider
+/// at build time: --dart-define=MAP_TILE_URL=https://.../{z}/{x}/{y}.png
+const kTileUrl = String.fromEnvironment('MAP_TILE_URL', defaultValue: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png');
 const kUserAgent = 'ir.melopet.melopet';
 const kTehran = LatLng(35.6997, 51.3380);
 
@@ -164,13 +165,22 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     }
   }
 
+  int _tileErrors = 0;
+  int _tileOk = 0;
+
+  bool get _tilesFailing => _tileErrors >= 4 && _tileOk == 0;
+
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final dark = isDark(context);
+    // solid surfaces: translucent glass over a light map made the text unreadable
+    final panel = dark ? const Color(0xFF2A1D27) : Colors.white;
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text('انتخاب موقعیت روی نقشه'),
-        flexibleSpace: Container(color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: .75)),
+        flexibleSpace: Container(color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: .9)),
       ),
       body: Stack(
         children: [
@@ -183,8 +193,22 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               interactionOptions: const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate),
             ),
             children: [
-              TileLayer(urlTemplate: kTileUrl, userAgentPackageName: kUserAgent),
-              const RichAttributionWidget(attributions: [TextSourceAttribution('© OpenStreetMap')]),
+              TileLayer(
+                urlTemplate: kTileUrl,
+                userAgentPackageName: kUserAgent,
+                tileProvider: NetworkTileProvider(),
+                errorTileCallback: (tile, error, stack) {
+                  if (mounted && _tileErrors < 50) setState(() => _tileErrors++);
+                },
+                tileBuilder: (context, widget, tile) {
+                  if (_tileOk == 0) WidgetsBinding.instance.addPostFrameCallback((_) => mounted ? setState(() => _tileOk++) : null);
+                  return widget;
+                },
+              ),
+              const RichAttributionWidget(
+                alignment: AttributionAlignment.bottomRight,
+                attributions: [TextSourceAttribution('© OpenStreetMap')],
+              ),
             ],
           ),
           // fixed centre pin
@@ -193,35 +217,83 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               child: Padding(padding: EdgeInsets.only(bottom: 46), child: _Pin()),
             ),
           ),
-          Positioned(
-            left: 16,
-            bottom: 120,
-            child: FloatingActionButton(
-              heroTag: 'gps',
-              onPressed: _locating ? null : _myLocation,
-              child: _locating
-                  ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.my_location_rounded),
+          if (_tilesFailing)
+            Positioned(
+              top: MediaQuery.paddingOf(context).top + kToolbarHeight + 8,
+              left: 16,
+              right: 16,
+              child: Material(
+                color: panel,
+                elevation: 4,
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.wifi_off_rounded, color: MP.warning),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'تصویر نقشه بارگذاری نشد (ممکن است اینترنت یا فیلترینگ مانع باشد). '
+                          'با دکمه «موقعیت من» هم می‌توانید مکان را ثبت کنید.',
+                          style: TextStyle(fontSize: 12.5, height: 1.7, color: cs.onSurface),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
+          // bottom controls in one column: nothing can overlap anything else
           Positioned(
             left: 16,
             right: 16,
-            bottom: 24,
+            bottom: 0,
             child: SafeArea(
+              minimum: const EdgeInsets.only(bottom: 16),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Glass(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: Text(
-                      'نقشه را جابه‌جا کنید تا پین دقیقا روی درِ مجموعه قرار بگیرد',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 12.5),
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: Tooltip(
+                      message: 'موقعیت من',
+                      child: Material(
+                        color: panel,
+                        elevation: 4,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: _locating ? null : _myLocation,
+                          child: SizedBox(
+                            width: 52,
+                            height: 52,
+                            child: Center(
+                              child: _locating
+                                  ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.2))
+                                  : Icon(Icons.my_location_rounded, color: cs.primary),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
+                  Material(
+                    color: panel,
+                    elevation: 3,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Text(
+                        'نقشه را جابه‌جا کنید تا پین دقیقا روی درِ مجموعه قرار بگیرد',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: cs.onSurface, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   GradientButton(label: 'تایید این موقعیت', icon: Icons.check_rounded, onPressed: () => Navigator.pop(context, _center)),
                 ],
               ),
@@ -263,7 +335,7 @@ class LocationField extends StatelessWidget {
                   children: [
                     Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
                     Text(
-                      value == null ? 'برای انتخاب لوکیشن روی نقشه لمس کنید (پیک مستقیم به همین نقطه می‌آید)' : 'موقعیت ثبت شد ✓',
+                      value == null ? 'برای انتخاب لوکیشن روی نقشه لمس کنید (پیک مستقیم به همین نقطه می‌آید)' : 'موقعیت ثبت شد',
                       style: const TextStyle(fontSize: 12),
                     ),
                   ],

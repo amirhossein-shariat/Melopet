@@ -11,7 +11,9 @@ import '../../theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
+import '../../utils/schedule.dart';
 import '../../widgets/location.dart';
+import '../../widgets/work_schedule.dart';
 
 import 'package:latlong2/latlong.dart';
 
@@ -41,7 +43,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // step 2 — address
   final city = TextEditingController(text: 'تهران');
   final address = TextEditingController();
-  final hours = TextEditingController();
+  WorkSchedule schedule = const WorkSchedule();
   final email = TextEditingController();
   final instagram = TextEditingController();
   // step 3 — branding
@@ -98,7 +100,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               'city': city.text.trim(),
               'address': address.text.trim(),
               if (location != null) 'location': geoJson(location!),
-              'working_hours': hours.text.trim(),
+              'working_hours': schedule.summary,
+              'work_schedule': schedule.toJson(),
               'instagram': instagram.text.trim(),
               'letterhead_top': 45,
               'letterhead_bottom': 25,
@@ -268,7 +271,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Field(city, 'شهر', icon: Icons.location_city_rounded, required: true),
               LocationField(title: 'لوکیشن مجموعه روی نقشه', value: location, onChanged: (p) => setState(() => location = p)),
               Field(address, 'آدرس کامل (برای مراجعه پیک)', icon: Icons.location_on_rounded, required: true, maxLines: 3),
-              Field(hours, 'ساعات کاری', icon: Icons.schedule_rounded, hint: 'مثلا: هر روز ۹ تا ۲۱'),
+              WorkScheduleField(initial: schedule, onChanged: (s) => schedule = s),
               Field(email, 'ایمیل (اختیاری)', icon: Icons.alternate_email_rounded, ltr: true, keyboard: TextInputType.emailAddress),
               Field(instagram, 'اینستاگرام (اختیاری)', icon: Icons.camera_alt_rounded, ltr: true),
             ],

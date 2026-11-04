@@ -133,12 +133,12 @@ class _ClinicsScreenState extends State<ClinicsScreen> {
                                   children: [
                                     CircleAvatar(
                                       radius: 24,
-                                      backgroundColor: tierColors[tier]!.withValues(alpha: .25),
+                                      backgroundColor: Color.lerp(tierColors[tier]!, Colors.white, .62),
                                       backgroundImage: c.getStringValue('logo').isNotEmpty
                                           ? NetworkImage(Api.fileUrl(c, 'logo', thumb: '200x200').toString())
                                           : null,
                                       child: c.getStringValue('logo').isEmpty
-                                          ? Icon(Icons.local_hospital_rounded, color: tierColors[tier])
+                                          ? const Icon(Icons.local_hospital_rounded, color: MP.plum)
                                           : null,
                                     ),
                                     const SizedBox(width: 12),
@@ -187,12 +187,14 @@ class TierBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
     decoration: BoxDecoration(
-      gradient: LinearGradient(colors: [tierColors[tier]!, tierColors[tier]!.withValues(alpha: .6)]),
+      gradient: LinearGradient(
+        colors: [Color.lerp(tierColors[tier]!, Colors.white, .30)!, Color.lerp(tierColors[tier]!, Colors.white, .52)!],
+      ),
       borderRadius: BorderRadius.circular(10),
     ),
     child: Text(
       tierLabels[tier] ?? tier,
-      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800),
+      style: const TextStyle(color: MP.plum, fontSize: 11.5, fontWeight: FontWeight.w800),
     ),
   );
 }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 import '../../services/api.dart';
@@ -60,11 +59,17 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 140),
             children: [
-              const Text('پیشنهادهای ویژه 🎁', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              const Row(
+                children: [
+                  Text('پیشنهادهای ویژه', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+                  SizedBox(width: 8),
+                  GiftMark(size: 28),
+                ],
+              ),
               const SizedBox(height: 4),
               Text(
                 'تخفیف‌ها و طرح‌های ویژه همکاران ملوپت',
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .6)),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .78)),
               ),
               const SizedBox(height: 14),
               if (_error != null)
@@ -81,7 +86,10 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
                 for (final p in _items!)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 14),
-                    child: PromoCard(p, onTap: Api.isAdmin ? () => _edit(p) : null),
+                    child: Reveal(
+                      index: _items!.indexOf(p),
+                      child: PromoCard(p, onTap: Api.isAdmin ? () => _edit(p) : null),
+                    ),
                   ),
             ],
           ),
@@ -185,10 +193,7 @@ class PromoCard extends StatelessWidget {
                           const Spacer(),
                           if (code.isNotEmpty)
                             InkWell(
-                              onTap: () {
-                                Clipboard.setData(ClipboardData(text: code));
-                                toast(context, 'کد تخفیف کپی شد');
-                              },
+                              onTap: () => copyText(context, code, done: 'کد تخفیف کپی شد'),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(

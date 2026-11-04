@@ -9,7 +9,10 @@ import '../theme.dart';
 class MelopetLogo extends StatelessWidget {
   final double size;
   final bool withText;
-  const MelopetLogo({super.key, this.size = 72, this.withText = false});
+
+  /// Round avatar version (chat header, list avatars).
+  final bool circle;
+  const MelopetLogo({super.key, this.size = 72, this.withText = false, this.circle = false});
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +21,8 @@ class MelopetLogo extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         gradient: MP.brandGradient,
-        borderRadius: BorderRadius.circular(size * .3),
+        shape: circle ? BoxShape.circle : BoxShape.rectangle,
+        borderRadius: circle ? null : BorderRadius.circular(size * .3),
         boxShadow: [BoxShadow(color: MP.pink.withValues(alpha: .5), blurRadius: size * .35, offset: Offset(0, size * .1))],
       ),
       child: CustomPaint(painter: _LogoPainter()),
@@ -39,7 +43,7 @@ class MelopetLogo extends StatelessWidget {
             fontSize: size * .12,
             letterSpacing: 2,
             fontWeight: FontWeight.w600,
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .55),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .78),
           ),
         ),
       ],
