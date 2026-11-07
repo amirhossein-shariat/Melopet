@@ -413,7 +413,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   Icon(categoryInfo('${i['category']}').icon, size: 18, color: categoryInfo('${i['category']}').color),
                   const SizedBox(width: 8),
                   Expanded(child: Text('${i['name']}')),
-                  Text(money(i['price'] as num? ?? 0, unit: false)),
+                  Text(priceText(i['price'] as num? ?? 0, unit: false)),
                 ],
               ),
             ),

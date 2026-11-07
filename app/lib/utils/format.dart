@@ -47,6 +47,9 @@ String money(num v, {bool unit = true, bool persian = true}) {
   return unit ? '$s $kCurrency' : s;
 }
 
+/// Price for display; 0 means the lab sells it by agreement ("*" in its price list).
+String priceText(num v, {bool unit = true}) => v <= 0 ? 'توافقی' : money(v, unit: unit);
+
 DateTime? parseDate(String? s) {
   if (s == null || s.isEmpty) return null;
   return DateTime.tryParse(s.replaceFirst(' ', 'T'))?.toLocal();

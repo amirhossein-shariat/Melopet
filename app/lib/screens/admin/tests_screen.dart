@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 import '../../services/api.dart';
+import '../../theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
@@ -16,6 +17,7 @@ class TestsScreen extends StatefulWidget {
 class _TestsScreenState extends State<TestsScreen> {
   List<RecordModel>? _items;
   String _q = '';
+  String _cat = 'all';
 
   @override
   void initState() {
@@ -36,6 +38,7 @@ class _TestsScreenState extends State<TestsScreen> {
   @override
   Widget build(BuildContext context) {
     final list = (_items ?? [])
+        .where((t) => _cat == 'all' || t.getStringValue('category') == _cat)
         .where(
           (t) => _q.isEmpty || t.getStringValue('name').toLowerCase().contains(_q) || t.getStringValue('code').toLowerCase().contains(_q),
         )
@@ -53,6 +56,24 @@ class _TestsScreenState extends State<TestsScreen> {
                   onChanged: (v) => setState(() => _q = v.trim().toLowerCase()),
                 ),
                 const SizedBox(height: 10),
+                SizedBox(
+                  height: 44,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      for (final e in {'all': 'همه', for (final c in categories.entries) c.key: c.value.label}.entries)
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(end: 8),
+                          child: MPChoiceChip(label: e.value, selected: _cat == e.key, onSelected: (_) => setState(() => _cat = e.key)),
+                        ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+                  child: Text('${faNum(list.length)} آزمایش', style: const TextStyle(fontSize: 12)),
+                ),
+                if (list.isEmpty) const EmptyState(icon: Icons.science_rounded, title: 'آزمایشی پیدا نشد'),
                 for (final t in list)
                   Glass(
                     margin: const EdgeInsets.only(bottom: 8),
@@ -75,6 +96,15 @@ class _TestsScreenState extends State<TestsScreen> {
                                   Expanded(
                                     child: Text(t.getStringValue('name'), style: const TextStyle(fontWeight: FontWeight.w800)),
                                   ),
+                                  if (t.getStringValue('code').isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsetsDirectional.only(start: 6),
+                                      child: Text(
+                                        t.getStringValue('code'),
+                                        textDirection: TextDirection.ltr,
+                                        style: const TextStyle(fontSize: 11),
+                                      ),
+                                    ),
                                   if (!t.getBoolValue('active')) const Text('غیرفعال', style: TextStyle(fontSize: 11, color: Colors.grey)),
                                 ],
                               ),
@@ -84,7 +114,7 @@ class _TestsScreenState extends State<TestsScreen> {
                                 children: [
                                   for (final tier in ['gold', 'silver', 'bronze'])
                                     Text(
-                                      '${tierLabels[tier]}: ${money(t.getDoubleValue('price_$tier'), unit: false)}',
+                                      '${tierLabels[tier]}: ${priceText(t.getDoubleValue('price_$tier'), unit: false)}',
                                       style: TextStyle(
                                         fontSize: 11.5,
                                         color: readable(context, tierColors[tier]!),
@@ -199,6 +229,22 @@ class _TestEditScreenState extends State<TestEditScreen> {
     }
   }
 
+  Future<void> _delete() async {
+    final ok = await confirm(
+      context,
+      'حذف آزمایش',
+      '«${t!.getStringValue('name')}» از لیست حذف شود؟ سفارش‌های قبلی که این آزمایش را داشته‌اند تغییری نمی‌کنند. برای پنهان‌کردن موقت، به‌جای حذف آن را غیرفعال کنید.',
+      ok: 'حذف',
+    );
+    if (!ok) return;
+    try {
+      await Api.pb.collection('tests').delete(t!.id);
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) toast(context, Api.error(e), error: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MPScaffold(
@@ -241,13 +287,24 @@ class _TestEditScreenState extends State<TestEditScreen> {
                             ],
                           ),
                         ),
-                        Expanded(child: Field(prices[tier]!, 'قیمت', ltr: true, keyboard: TextInputType.number, required: true)),
+                        Expanded(child: Field(prices[tier]!, 'قیمت (خالی = توافقی)', ltr: true, keyboard: TextInputType.number)),
                         Checkbox(
                           value: visible.contains(tier),
                           onChanged: (v) => setState(() => v == true ? visible.add(tier) : visible.remove(tier)),
                         ),
                       ],
                     ),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton.icon(
+                      onPressed: () => setState(() {
+                        prices['silver']!.text = prices['gold']!.text;
+                        prices['bronze']!.text = prices['gold']!.text;
+                      }),
+                      icon: const Icon(Icons.copy_all_rounded, size: 18),
+                      label: const Text('قیمت طلایی برای هر سه سطح'),
+                    ),
+                  ),
                   const Text('تیک = این آزمایش در لیست این سطح نمایش داده شود', style: TextStyle(fontSize: 11.5)),
                 ],
               ),
@@ -258,6 +315,14 @@ class _TestEditScreenState extends State<TestEditScreen> {
             for (var i = 0; i < params.length; i++) _paramCard(i),
             const SizedBox(height: 12),
             GradientButton(label: 'ذخیره', icon: Icons.save_rounded, loading: _saving, onPressed: _save),
+            if (t != null) ...[
+              const SizedBox(height: 10),
+              TextButton.icon(
+                onPressed: _delete,
+                icon: Icon(Icons.delete_outline_rounded, color: readable(context, MP.danger)),
+                label: Text('حذف این آزمایش', style: TextStyle(color: readable(context, MP.danger))),
+              ),
+            ],
           ],
         ),
       ),

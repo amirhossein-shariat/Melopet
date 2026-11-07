@@ -38,7 +38,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
         xl.TextCellValue(c.code),
         xl.TextCellValue(categoryInfo(c.category).label),
         xl.TextCellValue(c.sampleType),
-        xl.DoubleCellValue(c.price.toDouble()),
+        c.price > 0 ? xl.DoubleCellValue(c.price.toDouble()) : xl.TextCellValue('توافقی'),
       ]);
     }
     await Export.share(Uint8List.fromList(book.encode() ?? []), 'melopet-prices.xlsx', Export.xlsxMime);
@@ -94,7 +94,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
                                 ],
                               ),
                             ),
-                            Text(money(c.price), style: const TextStyle(fontWeight: FontWeight.w800)),
+                            Text(priceText(c.price), style: const TextStyle(fontWeight: FontWeight.w800)),
                           ],
                         ),
                       ),

@@ -90,6 +90,7 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
     }
   }
 
+  bool get _hasNegotiable => _catalog.any((c) => _selected.contains(c.id) && c.price <= 0);
   num get _total => _catalog.where((c) => _selected.contains(c.id)).fold<num>(0, (s, c) => s + c.price);
 
   void _next() {
@@ -204,7 +205,10 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('${faNum(_selected.length)} فاکتور', style: const TextStyle(fontSize: 12)),
+                            Text(
+                              '${faNum(_selected.length)} فاکتور${_hasNegotiable ? ' • شامل مورد توافقی' : ''}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
                             Text(money(_total), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
                           ],
                         ),
@@ -482,7 +486,7 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
                               ],
                             ),
                           ),
-                          Text(money(c.price, unit: false), style: const TextStyle(fontWeight: FontWeight.w800)),
+                          Text(priceText(c.price, unit: false), style: const TextStyle(fontWeight: FontWeight.w800)),
                         ],
                       ),
                     );

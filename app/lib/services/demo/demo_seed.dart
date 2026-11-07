@@ -200,37 +200,61 @@ void seedDemoData(DemoServer s) {
   test('Glucose (قند خون)', 'Glu', 'biochemistry', 'سرم / پلاسما (فلوراید)', 4, 95000, [
     p('glu', 'Glucose', 'mg/dL', dog: [74, 143], cat: [71, 159]),
   ]);
-  test('GGT (گاما گلوتامیل ترانسفراز)', 'GGT', 'biochemistry', 'سرم', 4, 95000, [
+  test('GGT (گاما گلوتامیل ترانسفراز)', 'GGT', 'biochemistry', 'سرم', 4, 99000, [
     p('ggt', 'GGT', 'U/L', dog: [0, 11], cat: [0, 4]),
   ]);
-  // extra sample tests (not in the lab's price list yet)
-  test('BUN (اوره خون)', 'BUN', 'biochemistry', 'سرم', 4, 95000, [
-    p('bun', 'BUN', 'mg/dL', dog: [7, 27], cat: [16, 36]),
-  ]);
-  test('Creatinine (کراتینین)', 'Cr', 'biochemistry', 'سرم', 4, 95000, [
-    p('cr', 'Creatinine', 'mg/dL', dog: [0.5, 1.8], cat: [0.8, 2.4]),
-  ]);
-  test('Albumin (آلبومین)', 'ALB', 'biochemistry', 'سرم', 4, 95000, [
-    p('alb', 'Albumin', 'g/dL', dog: [2.3, 4], cat: [2.2, 4.4]),
-  ]);
-  test('Amylase (آمیلاز)', 'AMY', 'biochemistry', 'سرم', 4, 120000, [
-    p('amy', 'Amylase', 'U/L', dog: [200, 1200], cat: [500, 1500]),
-  ]);
-  test('T4 (تیروکسین)', 'T4', 'hormone', 'سرم', 24, 350000, [
-    p('t4', 'Total T4', 'µg/dL', dog: [1, 4], cat: [1, 4]),
-  ]);
-  test('Cortisol (کورتیزول)', 'Cort', 'hormone', 'سرم', 24, 380000, [
-    p('cort', 'Cortisol', 'µg/dL', dog: [1, 6]),
-  ]);
-  test('Urinalysis (آنالیز ادرار)', 'UA', 'urinalysis', 'ادرار (استریل)', 6, 150000, [
-    p('sg', 'Specific gravity', '', dog: [1.015, 1.045], cat: [1.035, 1.06]),
-  ]);
+  // the rest of the lab's own price list (k1.xlsx); prices in Toman, 0 = negotiable ("*").
+  // Reference ranges are left empty on purpose: the lab enters the ones validated for its analyzers.
+  void single(String code, String name, String cat, String sample, int priceK, String pname, String unit, {int hours = 4}) {
+    test(name, code, cat, sample, hours, priceK * 1000, [p(pname.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), ''), pname, unit)]);
+  }
+
+  void report(String code, String name, String cat, int priceK, {String sample = ''}) =>
+      test(name, code, cat, sample, 0, priceK * 1000, []);
+
+  single('UREA', 'Urea (اوره)', 'biochemistry', 'سرم', 95, 'Urea', 'mg/dL');
+  single('SCR', 'Creatinine (کراتینین)', 'biochemistry', 'سرم', 95, 'Creatinine', 'mg/dL');
+  single('BIL.T', 'Total Bilirubin (بیلی‌روبین کل)', 'biochemistry', 'سرم', 95, 'Total Bilirubin', 'mg/dL');
+  single('BIL.D', 'Direct Bilirubin (بیلی‌روبین مستقیم)', 'biochemistry', 'سرم', 95, 'Direct Bilirubin', 'mg/dL');
+  single('T.P', 'Total Protein (پروتئین توتال)', 'biochemistry', 'سرم', 95, 'Total Protein', 'g/dL');
+  single('ALB', 'Albumin (آلبومین)', 'biochemistry', 'سرم', 95, 'Albumin', 'g/dL');
+  single('CK', 'CK (کراتین کیناز)', 'biochemistry', 'سرم', 200, 'CK', 'U/L');
+  single('CA', 'Calcium (کلسیم)', 'biochemistry', 'سرم', 95, 'Calcium', 'mg/dL');
+  single('PHOS', 'Phosphorus (فسفر)', 'biochemistry', 'سرم', 95, 'Phosphorus', 'mg/dL');
+  single('NA', 'Sodium (سدیم)', 'biochemistry', 'سرم', 190, 'Sodium', 'mmol/L');
+  single('K', 'Potassium (پتاسیم)', 'biochemistry', 'سرم', 190, 'Potassium', 'mmol/L');
+  single('LIPASE', 'Lipase (لیپاز)', 'biochemistry', 'سرم', 300, 'Lipase', 'U/L');
+  single('AMYLASE', 'Amylase (آمیلاز)', 'biochemistry', 'سرم', 300, 'Amylase', 'U/L');
+  single('FE', 'Iron (آهن)', 'biochemistry', 'سرم', 190, 'Iron', 'µg/dL');
+  single('CL', 'Chloride (کلر)', 'biochemistry', 'سرم', 190, 'Chloride', 'mmol/L');
+  single('CORTISOL', 'Cortisol (کورتیزول)', 'hormone', 'سرم', 490, 'Cortisol', 'µg/dL', hours: 0);
+  single('T4', 'T4 (تیروکسین)', 'hormone', 'سرم', 490, 'Total T4', 'µg/dL', hours: 0);
+  single('TSH', 'TSH (هورمون محرک تیروئید)', 'hormone', 'سرم', 500, 'TSH', 'ng/mL', hours: 0);
+  report('F10', 'F10', 'other', 950);
+  report('URINALYSIS', 'Urinalysis (آنالیز ادرار)', 'urinalysis', 570, sample: 'ادرار');
+  report('URHIIASIS', 'URHIIASIS', 'other', 490);
+  report('FNA', 'FNA (آسپیراسیون با سوزن ظریف)', 'pathology', 1300);
+  report('RIVALTA', 'Rivalta (تست ریوالتا)', 'fluid', 340, sample: 'مایع');
+  report('CYTOLOGY', 'Cytology (سیتولوژی)', 'pathology', 1000);
+  report('DIRECT SMEAR', 'Direct Smear (اسمیر مستقیم)', 'parasitology', 400);
+  report('INCUBATION', 'Incubation (انکوباسیون)', 'culture', 400);
+  report('GRAM', 'Gram Stain (رنگ‌آمیزی گرم)', 'culture', 0);
+  report('STOOL EXAM', 'Stool Exam (آزمایش مدفوع)', 'parasitology', 600, sample: 'مدفوع');
+  report('FLOTATION', 'Flotation (فلوتاسیون)', 'parasitology', 0, sample: 'مدفوع');
+  report('PATHOLOGY', 'Pathology (پاتولوژی)', 'pathology', 2500, sample: 'بافت');
+  report('VAGINAL SMEAR', 'Vaginal Smear (اسمیر واژینال)', 'pathology', 550);
+  report('PCR', 'PCR', 'pcr', 1400);
+  report('REAL TIME', 'Real-Time PCR', 'pcr', 0);
+  report('KNOT', "Knott's test (تست ناتس)", 'parasitology', 590, sample: 'خون کامل (EDTA)');
+  report('RABBIS IN', 'Rabies (RABBIS IN)', 'serology', 14000);
+  report('RABBIS EX', 'Rabies (RABBIS EX)', 'serology', 0);
+  report('RETICULOCYTE C.', 'Reticulocyte Count (شمارش رتیکولوسیت)', 'hematology', 375, sample: 'خون کامل (EDTA)');
+  report('CROSS MATCH', 'Cross Match (کراس‌مچ)', 'hematology', 900, sample: 'خون کامل (EDTA)');
+  report('PBFD', 'PBFD (بیماری منقار و پر)', 'pcr', 875);
+  report('GENDER', 'Gender (تعیین جنسیت)', 'pcr', 875);
+  // demo-only extras (not in the lab's list) used by the sample orders
   test('FeLV / FIV Ag', 'FeLV', 'serology', 'سرم / خون کامل', 4, 450000, []);
   test('Parvo (CPV) Ag', 'CPV', 'serology', 'مدفوع', 4, 300000, []);
-  test('Culture & Antibiogram', 'Cult', 'culture', 'سواب / ادرار / خون', 72, 600000, []);
-  test('Cytology (سیتولوژی)', 'Cyto', 'pathology', 'اسمیر / FNA', 48, 500000, []);
-  test('Biopsy (بیوپسی)', 'Bx', 'pathology', 'بافت (فرمالین ۱۰٪)', 120, 900000, []);
-  test('PCR پنل بیماری‌های تنفسی', 'PCR', 'pcr', 'سواب', 48, 1200000, []);
 
   // ------------------------------------------------------------------- orders
   const tierOf = {'democlinic0001': 'gold', 'democlinic0002': 'silver', 'democlinic0003': 'bronze'};
@@ -403,7 +427,7 @@ void seedDemoData(DemoServer s) {
     age: '۲ سال',
     sex: 'male',
     owner: 'آقای موسوی',
-    codes: ['Chol', 'TG', 'BUN', 'Cr'],
+    codes: ['Chol', 'TG', 'UREA', 'SCR'],
     history: 'چاقی و بی‌حالی، ارزیابی چربی و کلیه.',
     created: ago(h: 5),
   );
