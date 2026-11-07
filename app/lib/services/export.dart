@@ -7,6 +7,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../utils/accounting.dart';
 import '../utils/format.dart';
 import '../utils/results.dart';
 import 'api.dart';
@@ -344,6 +345,298 @@ class Export {
     );
   }
 
+  /// Financial statement (حسابرسی) of one clinic for a period: charges, payments, balance and how to pay.
+  static Future<Uint8List> statementPdf({
+    required Statement statement,
+    required RecordModel clinic,
+    RecordModel? settings,
+    DateTime? now,
+  }) async {
+    await _fonts();
+    final theme = pw.ThemeData.withFont(base: _reg!, bold: _bold!);
+    final labName = settings?.getStringValue('lab_name').isNotEmpty == true
+        ? settings!.getStringValue('lab_name')
+        : 'آزمایشگاه دامپزشکی ملوپت';
+    final st = statement;
+    final card = settings?.getStringValue('card_number') ?? '';
+    final owes = st.closing > 0.5;
+
+    pw.Widget cell(String t, {bool bold = false, PdfColor? color, pw.Alignment align = pw.Alignment.centerRight, double size = 9.5}) =>
+        pw.Container(
+          alignment: align,
+          padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+          child: pw.Text(
+            t,
+            style: pw.TextStyle(fontSize: size, fontWeight: bold ? pw.FontWeight.bold : null, color: color),
+          ),
+        );
+    pw.Widget head(String t) => cell(t, bold: true, color: _pink, size: 9);
+
+    pw.Widget table(List<String> heads, List<List<String>> rows, List<double> flex) => pw.Table(
+      border: const pw.TableBorder(horizontalInside: pw.BorderSide(color: PdfColor.fromInt(0xFFF1DCE4), width: .6)),
+      // pw.Table lays columns out left-to-right; Persian reads right-to-left, so mirror them
+      columnWidths: {for (var i = 0; i < flex.length; i++) i: pw.FlexColumnWidth(flex.reversed.toList()[i])},
+      children: [
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: _pinkSoft),
+          children: [for (final h in heads.reversed) head(h)],
+        ),
+        for (final r in rows) pw.TableRow(children: [for (final c in r.reversed) cell(c)]),
+      ],
+    );
+
+    pw.Widget section(String t) => pw.Padding(
+      padding: const pw.EdgeInsets.only(top: 12, bottom: 4),
+      child: pw.Text(t, style: pw.TextStyle(fontSize: 11.5, fontWeight: pw.FontWeight.bold)),
+    );
+
+    pw.Widget sumRow(String label, String value, {bool strong = false, PdfColor? color}) => pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 3),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(
+            label,
+            style: pw.TextStyle(fontSize: strong ? 12 : 10, fontWeight: strong ? pw.FontWeight.bold : null),
+          ),
+          pw.Text(
+            value,
+            style: pw.TextStyle(fontSize: strong ? 13 : 10, fontWeight: pw.FontWeight.bold, color: color),
+          ),
+        ],
+      ),
+    );
+
+    String testsOf(RecordModel o) => (o.data['items'] as List? ?? []).map((e) => '${(e as Map)['code'] ?? e['name']}').join('، ');
+
+    final doc = pw.Document(title: 'Melopet statement', author: labName);
+    doc.addPage(
+      pw.MultiPage(
+        pageTheme: pw.PageTheme(
+          pageFormat: PdfPageFormat.a4,
+          theme: theme,
+          textDirection: pw.TextDirection.rtl,
+          margin: const pw.EdgeInsets.all(14 * PdfPageFormat.mm),
+        ),
+        header: (ctx) => _defaultHeader(labName, ctx),
+        footer: (ctx) => pw.Container(
+          alignment: pw.Alignment.center,
+          margin: const pw.EdgeInsets.only(top: 6),
+          child: pw.Text(
+            'صفحه ${faNum(ctx.pageNumber)} از ${faNum(ctx.pagesCount)}  •  $labName',
+            style: const pw.TextStyle(fontSize: 8, color: _grey),
+          ),
+        ),
+        build: (ctx) => [
+          pw.Center(
+            child: pw.Text(
+              'صورتحساب مالی',
+              style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, color: _pink),
+            ),
+          ),
+          pw.SizedBox(height: 8),
+          _infoBox([
+            ['مرکز', clinic.getStringValue('clinic_name')],
+            ['دامپزشک', clinic.getStringValue('doctor_name')],
+            ['تلفن', clinic.getStringValue('mobile')],
+            ['بازه', st.period.label],
+            if (st.period.from != null) ['از تاریخ', jDate(st.period.from)],
+            if (st.period.to != null) ['تا تاریخ', jDate(st.period.to!.subtract(const Duration(days: 1)))],
+            ['تاریخ صدور', jDate(now ?? DateTime.now())],
+          ]),
+          section('خلاصه حساب'),
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: const PdfColor.fromInt(0xFFEBC6D4)),
+              borderRadius: pw.BorderRadius.circular(8),
+            ),
+            child: pw.Column(
+              children: [
+                if (st.period.from != null) sumRow('مانده از قبل از این بازه', money(st.opening)),
+                sumRow('جمع هزینه آزمایشها (${faNum(st.charges.length)} سفارش)', money(st.chargesTotal)),
+                sumRow('جمع پرداختیهای تایید شده', money(st.confirmedTotal)),
+                if (st.pendingTotal > 0) sumRow('پرداختیهای در انتظار تایید (کسر نشده)', money(st.pendingTotal)),
+                pw.Divider(color: const PdfColor.fromInt(0xFFEBC6D4)),
+                sumRow(
+                  st.closing < -0.5 ? 'بستانکار' : 'مانده بدهی',
+                  st.closing.abs() < 0.5 ? 'تسویه شده' : money(st.closing.abs()),
+                  strong: true,
+                  color: owes ? PdfColors.red700 : PdfColors.green800,
+                ),
+              ],
+            ),
+          ),
+          section('سفارشها'),
+          if (st.charges.isEmpty)
+            pw.Text('در این بازه سفارشی ثبت نشده است.', style: const pw.TextStyle(fontSize: 9.5, color: _grey))
+          else
+            table(
+              ['تاریخ', 'کد', 'حیوان', 'آزمایشها', 'مبلغ'],
+              [
+                for (final c in st.charges)
+                  [
+                    jDate(c.date),
+                    c.order.getStringValue('code'),
+                    c.order.getStringValue('pet_name'),
+                    testsOf(c.order),
+                    money(c.amount, unit: false),
+                  ],
+              ],
+              [1.3, 1.2, 1.3, 3.2, 1.4],
+            ),
+          section('پرداختها'),
+          if (st.payments.isEmpty)
+            pw.Text('در این بازه پرداختی ثبت نشده است.', style: const pw.TextStyle(fontSize: 9.5, color: _grey))
+          else
+            table(
+              ['تاریخ', 'روش', 'شماره پیگیری', 'وضعیت', 'مبلغ'],
+              [
+                for (final p in st.payments)
+                  [
+                    jDate(p.date),
+                    paymentMethodLabels[p.record.getStringValue('method')] ?? '-',
+                    p.record.getStringValue('tracking_no'),
+                    p.status == 'confirmed' ? 'تایید شده' : 'در انتظار تایید',
+                    money(p.amount, unit: false),
+                  ],
+              ],
+              [1.3, 1.2, 1.6, 1.5, 1.4],
+            ),
+          pw.SizedBox(height: 4),
+          pw.Text('مبالغ به $kCurrency است.', style: const pw.TextStyle(fontSize: 8, color: _grey)),
+          if (owes && card.isNotEmpty) ...[
+            section('نحوه تسویه'),
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.all(10),
+              decoration: pw.BoxDecoration(color: _pinkSoft, borderRadius: pw.BorderRadius.circular(8)),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('کارت به کارت به شماره کارت زیر و ثبت پرداخت در برنامه ملوپت:', style: const pw.TextStyle(fontSize: 9.5)),
+                  pw.SizedBox(height: 4),
+                  pw.Directionality(
+                    textDirection: pw.TextDirection.ltr,
+                    child: pw.Text(cardGroups(card), style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, letterSpacing: 1)),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    [
+                      settings?.getStringValue('card_holder') ?? '',
+                      settings?.getStringValue('bank_name') ?? '',
+                    ].where((e) => e.isNotEmpty).join(' • '),
+                    style: const pw.TextStyle(fontSize: 9.5, color: _grey),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+    return doc.save();
+  }
+
+  static Future<Uint8List> statementPdfFor(Statement statement, RecordModel clinic, {RecordModel? settings}) =>
+      statementPdf(statement: statement, clinic: clinic, settings: settings);
+
+  /// Admin summary: every partner's charges, payments and balance for one period.
+  static Future<Uint8List> debtsPdf({
+    required StatementPeriod period,
+    required List<(RecordModel, Statement)> rows,
+    RecordModel? settings,
+    DateTime? now,
+  }) async {
+    await _fonts();
+    final theme = pw.ThemeData.withFont(base: _reg!, bold: _bold!);
+    final labName = settings?.getStringValue('lab_name').isNotEmpty == true
+        ? settings!.getStringValue('lab_name')
+        : 'آزمایشگاه دامپزشکی ملوپت';
+    pw.Widget cell(String t, {bool bold = false, PdfColor? color, double size = 9.5}) => pw.Container(
+      alignment: pw.Alignment.centerRight,
+      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+      child: pw.Text(
+        t,
+        style: pw.TextStyle(fontSize: size, fontWeight: bold ? pw.FontWeight.bold : null, color: color),
+      ),
+    );
+    final totalClosing = rows.fold(0.0, (a, r) => a + r.$2.closing);
+    final totalCharges = rows.fold(0.0, (a, r) => a + r.$2.chargesTotal);
+    final totalPaid = rows.fold(0.0, (a, r) => a + r.$2.confirmedTotal);
+    final heads = ['مرکز', 'مانده قبل', 'هزینه آزمایشها', 'پرداختی', 'مانده'];
+    final doc = pw.Document(title: 'Melopet receivables', author: labName);
+    doc.addPage(
+      pw.MultiPage(
+        pageTheme: pw.PageTheme(
+          pageFormat: PdfPageFormat.a4,
+          theme: theme,
+          textDirection: pw.TextDirection.rtl,
+          margin: const pw.EdgeInsets.all(14 * PdfPageFormat.mm),
+        ),
+        header: (ctx) => _defaultHeader(labName, ctx),
+        footer: (ctx) => pw.Container(
+          alignment: pw.Alignment.center,
+          child: pw.Text('صفحه ${faNum(ctx.pageNumber)} از ${faNum(ctx.pagesCount)}', style: const pw.TextStyle(fontSize: 8, color: _grey)),
+        ),
+        build: (ctx) => [
+          pw.Center(
+            child: pw.Text(
+              'گزارش مطالبات همکاران',
+              style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, color: _pink),
+            ),
+          ),
+          pw.SizedBox(height: 6),
+          pw.Center(
+            child: pw.Text(
+              'بازه: ${period.label}  •  تاریخ صدور: ${jDate(now ?? DateTime.now())}  •  مبالغ به $kCurrency',
+              style: const pw.TextStyle(fontSize: 9, color: _grey),
+            ),
+          ),
+          pw.SizedBox(height: 10),
+          pw.Table(
+            border: const pw.TableBorder(horizontalInside: pw.BorderSide(color: PdfColor.fromInt(0xFFF1DCE4), width: .6)),
+            // mirrored for right-to-left reading (first column on the right)
+            columnWidths: const {
+              0: pw.FlexColumnWidth(1.8),
+              1: pw.FlexColumnWidth(1.6),
+              2: pw.FlexColumnWidth(1.8),
+              3: pw.FlexColumnWidth(1.6),
+              4: pw.FlexColumnWidth(3),
+            },
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: _pinkSoft),
+                children: [for (final h in heads.reversed) cell(h, bold: true, color: _pink, size: 9)],
+              ),
+              for (final r in rows)
+                pw.TableRow(
+                  children: [
+                    cell(money(r.$2.closing, unit: false), bold: true, color: r.$2.closing > 0.5 ? PdfColors.red700 : PdfColors.green800),
+                    cell(money(r.$2.confirmedTotal, unit: false)),
+                    cell(money(r.$2.chargesTotal, unit: false)),
+                    cell(money(r.$2.opening, unit: false)),
+                    cell(r.$1.getStringValue('clinic_name')),
+                  ],
+                ),
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: _pinkSoft),
+                children: [
+                  cell(money(totalClosing, unit: false), bold: true),
+                  cell(money(totalPaid, unit: false), bold: true),
+                  cell(money(totalCharges, unit: false), bold: true),
+                  cell(''),
+                  cell('جمع کل', bold: true),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    return doc.save();
+  }
+
   /// Excel workbook with patient info + all results.
   static Uint8List resultExcel(RecordModel order, RecordModel? clinic) {
     final book = xl.Excel.createExcel();
@@ -406,32 +699,6 @@ class Export {
     s.setColumnWidth(1, 22);
     s.setColumnWidth(2, 14);
     s.setColumnWidth(5, 20);
-    return Uint8List.fromList(book.encode() ?? []);
-  }
-
-  /// Excel list of orders (admin / clinic history).
-  static Uint8List ordersExcel(List<RecordModel> orders) {
-    final book = xl.Excel.createExcel();
-    final first = book.getDefaultSheet() ?? 'Sheet1';
-    book.rename(first, 'Orders');
-    final s = book['Orders'];
-    s.isRTL = true;
-    xl.CellValue t(String v) => xl.TextCellValue(v);
-    s.appendRow([t('کد'), t('تاریخ'), t('مرکز'), t('حیوان'), t('گونه'), t('آزمایش‌ها'), t('مبلغ'), t('وضعیت')]);
-    for (final o in orders) {
-      final clinic = o.get<RecordModel?>('expand.clinic');
-      final items = (o.data['items'] as List? ?? []).map((e) => (e as Map)['code'] ?? e['name']).join(', ');
-      s.appendRow([
-        t(o.getStringValue('code')),
-        t(jDate(parseDate(o.getStringValue('created')), persian: false)),
-        t(clinic?.getStringValue('clinic_name') ?? ''),
-        t(o.getStringValue('pet_name')),
-        t(speciesLabels[o.getStringValue('species')] ?? ''),
-        t(items),
-        xl.DoubleCellValue(o.getDoubleValue('total')),
-        t(statusInfo(o.getStringValue('status')).label),
-      ]);
-    }
     return Uint8List.fromList(book.encode() ?? []);
   }
 

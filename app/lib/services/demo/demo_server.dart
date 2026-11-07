@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 // ignore: implementation_imports
 import 'package:pocketbase/src/multipart_request.dart' show MultipartRequest;
 
+import '../../utils/format.dart';
 import 'demo_seed.dart';
 
 /// An in-memory imitation of the Melopet backend (PocketBase + custom routes).
@@ -38,6 +39,7 @@ class DemoServer {
     'notifications': 'pbc_notifications',
     'conversations': 'pbc_conversations',
     'messages': 'pbc_messages',
+    'payments': 'pbc_payments',
     'settings': 'pbc_settings',
   };
 
@@ -47,6 +49,7 @@ class DemoServer {
     'messages': {'conversation': 'conversations', 'sender': 'users', 'reply_to': 'messages'},
     'notifications': {'user': 'users'},
     'clinic_tiers': {'clinic': 'users'},
+    'payments': {'clinic': 'users'},
   };
 
   static const _statusTitles = {
@@ -191,6 +194,7 @@ class DemoServer {
         return admin;
       case 'orders':
       case 'conversations':
+      case 'payments':
         return admin || r['clinic'] == me['id'];
       case 'messages':
         final conv = find('conversations', _s(r, 'conversation'));
@@ -221,6 +225,8 @@ class DemoServer {
         return false;
       case 'orders':
         return admin && method != 'DELETE';
+      case 'payments':
+        return admin || (method == 'POST' && me != null);
       case 'notifications':
         return admin || (method == 'PATCH' && me != null);
     }
@@ -587,6 +593,23 @@ class DemoServer {
       if (_s(data, 'kind').isEmpty) data['kind'] = b.files.isEmpty ? 'text' : 'file';
     }
 
+    if (c == 'payments') {
+      final amount = (data['amount'] as num?) ?? num.tryParse('${data['amount']}') ?? 0;
+      if (amount <= 0) {
+        throw _Err(400, 'Failed to create record.', {
+          'amount': {'message': 'مبلغ معتبر نیست'},
+        });
+      }
+      data['amount'] = amount;
+      if (_isAdmin(me)) {
+        data['status'] = _s(data, 'status').isEmpty ? 'confirmed' : data['status'];
+      } else {
+        data['clinic'] = me!['id'];
+        data['status'] = 'pending';
+      }
+      if (_s(data, 'paid_at').isEmpty) data['paid_at'] = ts();
+    }
+
     final rec = newRecord(c, {..._defaults(c), ...data});
     _applyFiles(rec, b.files);
     _afterCreate(c, rec, me);
@@ -632,6 +655,19 @@ class DemoServer {
           notify(user: conv['clinic'], title: 'پیام جدید از آزمایشگاه ملوپت', body: preview, type: 'chat', ref: conv['id']);
         } else {
           notify(audience: 'admins', title: 'پیام از ${_s(sender, 'clinic_name')}', body: preview, type: 'chat', ref: conv['id']);
+        }
+      case 'payments':
+        final amount = money(rec['amount'] as num);
+        if (rec['status'] == 'pending') {
+          final clinic = find('users', _s(rec, 'clinic'));
+          notify(
+            audience: 'admins',
+            title: 'پرداخت جدید ثبت شد',
+            body: '${_s(clinic, 'clinic_name')} — $amount، در انتظار تایید',
+            ref: rec['id'],
+          );
+        } else {
+          notify(user: rec['clinic'], title: 'پرداخت شما ثبت شد', body: '$amount به حساب شما افزوده شد.', ref: rec['id']);
         }
       case 'promotions':
         if (rec['active'] == true && rec['notify'] == true) {
@@ -693,6 +729,14 @@ class DemoServer {
           text += ' | پیک: ${_s(rec, 'courier_name')} ${_s(rec, 'courier_phone')}';
         }
         notify(user: rec['clinic'], title: _statusTitles[status] ?? status, body: text, type: type, ref: rec['id']);
+      }
+    }
+    if (c == 'payments' && oldStatus == 'pending' && _s(rec, 'status') != 'pending') {
+      final amount = money(rec['amount'] as num);
+      if (rec['status'] == 'confirmed') {
+        notify(user: rec['clinic'], title: 'پرداخت شما تایید شد', body: '$amount از بدهی شما کسر شد.', ref: rec['id']);
+      } else if (rec['status'] == 'rejected') {
+        notify(user: rec['clinic'], title: 'پرداخت شما تایید نشد', body: 'لطفا با آزمایشگاه تماس بگیرید.', ref: rec['id']);
       }
     }
     if (c == 'users' && !oldApproved && rec['approved'] == true && rec['role'] == 'clinic') {

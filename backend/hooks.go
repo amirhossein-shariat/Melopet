@@ -110,6 +110,52 @@ func registerHooks(app core.App) {
 		return nil
 	})
 
+	// ---- payments: clinics file them as pending, the lab confirms --------
+	app.OnRecordCreateRequest("payments").BindFunc(func(e *core.RecordRequestEvent) error {
+		if e.HasSuperuserAuth() || isAdmin(e.Auth) {
+			if e.Record.GetString("status") == "" {
+				e.Record.Set("status", "confirmed")
+			}
+		} else {
+			e.Record.Set("status", "pending")
+			e.Record.Set("clinic", e.Auth.Id)
+		}
+		if e.Record.GetString("paid_at") == "" {
+			e.Record.Set("paid_at", time.Now().UTC().Format("2006-01-02 15:04:05.000Z"))
+		}
+		return e.Next()
+	})
+	app.OnRecordAfterCreateSuccess("payments").BindFunc(func(e *core.RecordEvent) error {
+		amount := fmt.Sprintf("%.0f", e.Record.GetFloat("amount"))
+		clinic, _ := e.App.FindRecordById("users", e.Record.GetString("clinic"))
+		name := ""
+		if clinic != nil {
+			name = clinic.GetString("clinic_name")
+		}
+		if e.Record.GetString("status") == "pending" {
+			notify(e.App, "", "admins", "general", "پرداخت جدید ثبت شد", name+" — "+amount+" تومان، در انتظار تایید", e.Record.Id)
+		} else if e.Record.GetString("status") == "confirmed" {
+			notify(e.App, e.Record.GetString("clinic"), "user", "general", "پرداخت شما ثبت شد", amount+" تومان به حساب شما افزوده شد.", e.Record.Id)
+		}
+		return e.Next()
+	})
+	app.OnRecordUpdate("payments").BindFunc(func(e *core.RecordEvent) error {
+		before := e.Record.Original().GetString("status")
+		if err := e.Next(); err != nil {
+			return err
+		}
+		now := e.Record.GetString("status")
+		if before == "pending" && now != before {
+			amount := fmt.Sprintf("%.0f", e.Record.GetFloat("amount"))
+			if now == "confirmed" {
+				notify(e.App, e.Record.GetString("clinic"), "user", "general", "پرداخت شما تایید شد", amount+" تومان از بدهی شما کسر شد.", e.Record.Id)
+			} else if now == "rejected" {
+				notify(e.App, e.Record.GetString("clinic"), "user", "general", "پرداخت شما تایید نشد", "لطفا با آزمایشگاه تماس بگیرید.", e.Record.Id)
+			}
+		}
+		return nil
+	})
+
 	// ---- orders: status history + notifications ---------------------------
 	app.OnRecordCreate("orders").BindFunc(func(e *core.RecordEvent) error {
 		if e.Record.GetString("status") == "" {

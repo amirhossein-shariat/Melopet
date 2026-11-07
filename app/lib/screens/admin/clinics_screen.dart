@@ -11,6 +11,7 @@ import '../chat/chat_screen.dart';
 import '../clinic/courier_request_screen.dart';
 import '../clinic/profile_screen.dart';
 import '../shared/orders_screen.dart';
+import '../shared/statement_screen.dart';
 
 Future<Map<String, String>> loadTiers() async {
   final r = await Api.pb.send<Map<String, dynamic>>('/api/melopet/admin/tiers');
@@ -329,6 +330,12 @@ class _ClinicAdminScreenState extends State<ClinicAdminScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => StatementScreen(clinicId: c.id))),
+            icon: const Icon(Icons.account_balance_wallet_rounded),
+            label: const Text('حسابرسی و پرداخت‌ها'),
           ),
           const SectionTitle('مشخصات'),
           Glass(

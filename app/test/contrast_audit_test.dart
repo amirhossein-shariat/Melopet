@@ -13,6 +13,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:melopet/screens/admin/accounting_screen.dart';
 import 'package:melopet/screens/admin/admin_dashboard.dart';
 import 'package:melopet/screens/admin/admin_more_screen.dart';
 import 'package:melopet/screens/admin/broadcast_screen.dart';
@@ -34,6 +35,7 @@ import 'package:melopet/screens/shared/notifications_screen.dart';
 import 'package:melopet/screens/shared/order_detail_screen.dart';
 import 'package:melopet/screens/shared/orders_screen.dart';
 import 'package:melopet/screens/shared/promotions_screen.dart';
+import 'package:melopet/screens/shared/statement_screen.dart';
 import 'package:melopet/services/api.dart';
 import 'package:melopet/services/demo/demo_server.dart';
 import 'package:melopet/state/app_state.dart';
@@ -251,6 +253,7 @@ void main() {
     'clinic-promos': (() => const PromotionsScreen(), false),
     'clinic-profile': (() => const ProfileScreen(), false),
     'clinic-contact': (() => const ContactScreen(), false),
+    'clinic-statement': (() => const StatementScreen(), false),
     'clinic-prices': (() => const PriceListScreen(), false),
     'clinic-courier': (() => const CourierRequestScreen(), false),
     'clinic-edit-profile': (() => const EditProfileScreen(), false),
@@ -265,6 +268,8 @@ void main() {
     'admin-clinics': (() => const ClinicsScreen(), true),
     'admin-tests': (() => const TestsScreen(), true),
     'admin-more': (() => const AdminMoreScreen(), true),
+    'admin-accounting': (() => const AccountingScreen(), true),
+    'admin-statement': (() => const StatementScreen(clinicId: 'democlinic0001'), true),
     'admin-lab-settings': (() => const LabSettingsScreen(), true),
     'admin-broadcast': (() => const BroadcastScreen(), true),
     'admin-promo-edit': (() => const PromotionEditScreen(), true),

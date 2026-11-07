@@ -32,6 +32,9 @@ void seedDemoData(DemoServer s) {
     },
     'about': 'ملوپت، آزمایشگاه تخصصی دامپزشکی با خدمات نمونه‌گیری در محل از طریق پیک.',
     'technical_manager': 'دکتر نمونه',
+    'card_number': '6037997012345678',
+    'card_holder': 'آزمایشگاه دامپزشکی ملوپت (نمونه)',
+    'bank_name': 'بانک ملی',
   });
 
   // -------------------------------------------------------------------- users
@@ -418,6 +421,26 @@ void seedDemoData(DemoServer s) {
     urgent: true,
     created: ago(m: 8),
   );
+
+  // ----------------------------------------------------------------- payments
+  s.newRecord('payments', {
+    'clinic': 'democlinic0001',
+    'amount': 400000,
+    'method': 'card',
+    'tracking_no': '۴۴۱۲۰۹',
+    'note': '',
+    'paid_at': s.ts(ago(d: 3)),
+    'status': 'confirmed',
+  }, created: ago(d: 3));
+  s.newRecord('payments', {
+    'clinic': 'democlinic0001',
+    'amount': 250000,
+    'method': 'card',
+    'tracking_no': '۸۸۱۰۰۲',
+    'note': 'کارت به کارت امروز',
+    'paid_at': s.ts(ago(h: 1)),
+    'status': 'pending',
+  }, created: ago(h: 1));
 
   // -------------------------------------------------------------------- chat
   final convMehr = s.newRecord('conversations', {

@@ -426,21 +426,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               Text(money(o.getDoubleValue('total')), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
             ],
           ),
-          if (o.getBoolValue('paid'))
-            Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.check_circle_rounded, size: 18, color: readable(context, MP.success)),
-                  const SizedBox(width: 4),
-                  Text(
-                    'تسویه شده',
-                    style: TextStyle(color: readable(context, MP.success), fontWeight: FontWeight.w700),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );
@@ -812,14 +797,6 @@ class _AdminPanel extends StatelessWidget {
                     ],
                   ),
                 ),
-              ),
-              MPChoiceChip(
-                label: 'تسویه شده',
-                selected: order.getBoolValue('paid'),
-                onSelected: (v) async {
-                  await Api.pb.collection('orders').update(order.id, body: {'paid': v});
-                  onChanged();
-                },
               ),
             ],
           ),

@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 import '../../services/api.dart';
-import '../../services/export.dart';
 import '../../utils/format.dart';
 import '../../widgets/glass.dart';
+import '../admin/accounting_screen.dart';
 import '../clinic/home_screen.dart';
+import 'statement_screen.dart';
 
 /// Orders list. For clinics: their own orders. For admins: all orders
 /// (optionally of a single clinic).
@@ -89,9 +90,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
   }
 
-  Future<void> _export() async {
-    final all = await Api.pb.collection('orders').getFullList(sort: '-created', filter: _filterExpr, expand: 'clinic');
-    await Export.share(Export.ordersExcel(all), 'melopet-orders.xlsx', Export.xlsxMime);
+  /// Accounts: a clinic sees its own statement, the lab sees every partner's balance
+  /// (or one clinic's statement when this list is filtered to a single clinic).
+  void _accounts() {
+    final Widget page = !Api.isAdmin
+        ? const StatementScreen()
+        : (widget.clinicId != null ? StatementScreen(clinicId: widget.clinicId) : const AccountingScreen());
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
   }
 
   @override
@@ -108,7 +113,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   const Expanded(
                     child: Text('سفارش‌ها', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
                   ),
-                  IconButton(tooltip: 'خروجی اکسل', onPressed: _export, icon: const Icon(Icons.table_view_rounded)),
+                  TextButton.icon(
+                    onPressed: _accounts,
+                    icon: const Icon(Icons.account_balance_wallet_rounded, size: 20),
+                    label: Text(Api.isAdmin ? 'حسابداری' : 'حسابرسی و پرداخت'),
+                  ),
                 ],
               ),
             ),
@@ -174,7 +183,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
     if (!widget.standalone) return body;
     return MPScaffold(
       title: 'سفارش‌های مرکز',
-      actions: [IconButton(onPressed: _export, icon: const Icon(Icons.table_view_rounded))],
+      actions: [IconButton(tooltip: 'حسابرسی', onPressed: _accounts, icon: const Icon(Icons.account_balance_wallet_rounded))],
       body: body,
     );
   }

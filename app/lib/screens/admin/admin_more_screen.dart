@@ -14,6 +14,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../clinic/profile_screen.dart';
 import '../shared/promotions_screen.dart';
+import 'accounting_screen.dart';
 import 'broadcast_screen.dart';
 import 'tests_screen.dart';
 
@@ -24,6 +25,7 @@ class AdminMoreScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     void push(Widget w) => Navigator.push(context, MaterialPageRoute(builder: (_) => w));
     final tools = <(IconData, Color, String, VoidCallback)>[
+      (Icons.account_balance_wallet_rounded, MP.mintDeep, 'حسابداری و مطالبات همکاران', () => push(const AccountingScreen())),
       (Icons.science_rounded, MP.lavenderDeep, 'آزمایش‌ها و تعرفه‌ها', () => push(const TestsScreen())),
       (
         Icons.local_offer_rounded,
@@ -99,6 +101,9 @@ class _LabSettingsScreenState extends State<LabSettingsScreen> {
     'email': 'ایمیل',
     'website': 'وب‌سایت',
     'address': 'آدرس',
+    'card_number': 'شماره کارت برای دریافت پرداخت همکاران',
+    'card_holder': 'نام صاحب کارت',
+    'bank_name': 'نام بانک',
     'about': 'درباره ما',
   };
   late final s = context.read<AppState>().settings;
@@ -151,7 +156,7 @@ class _LabSettingsScreenState extends State<LabSettingsScreen> {
                 c[e.key]!,
                 e.value,
                 maxLines: e.key == 'about' || e.key == 'address' ? 3 : 1,
-                ltr: const ['phone', 'mobile', 'whatsapp', 'telegram', 'instagram', 'email', 'website'].contains(e.key),
+                ltr: const ['phone', 'mobile', 'whatsapp', 'telegram', 'instagram', 'email', 'website', 'card_number'].contains(e.key),
               ),
             WorkScheduleField(initial: schedule, onChanged: (s) => schedule = s),
             LocationField(
