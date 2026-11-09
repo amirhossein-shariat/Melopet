@@ -13,12 +13,7 @@ import '../clinic/profile_screen.dart';
 import '../shared/orders_screen.dart';
 import '../shared/statement_screen.dart';
 
-Future<Map<String, String>> loadTiers() async {
-  final r = await Api.pb.send<Map<String, dynamic>>('/api/melopet/admin/tiers');
-  return r.map((k, v) => MapEntry(k, '$v'));
-}
-
-/// Admin: list of partner clinics with their (private) tier.
+/// Admin: list of partner clinics.
 class ClinicsScreen extends StatefulWidget {
   final bool pickMode;
   const ClinicsScreen({super.key, this.pickMode = false});
@@ -28,7 +23,6 @@ class ClinicsScreen extends StatefulWidget {
 
 class _ClinicsScreenState extends State<ClinicsScreen> {
   List<RecordModel>? _items;
-  Map<String, String> _tiers = {};
   String _q = '';
   String _filter = 'all';
 
@@ -41,11 +35,9 @@ class _ClinicsScreenState extends State<ClinicsScreen> {
   Future<void> _load() async {
     try {
       final r = await Api.pb.collection('users').getFullList(filter: 'role = "clinic"', sort: 'approved,-created');
-      final t = await loadTiers();
       if (mounted) {
         setState(() {
           _items = r;
-          _tiers = t;
         });
       }
     } catch (e) {
@@ -57,7 +49,6 @@ class _ClinicsScreenState extends State<ClinicsScreen> {
   Widget build(BuildContext context) {
     final list = (_items ?? []).where((c) {
       if (_filter == 'pending' && c.getBoolValue('approved')) return false;
-      if (['gold', 'silver', 'bronze'].contains(_filter) && (_tiers[c.id] ?? 'bronze') != _filter) return false;
       if (_q.isEmpty) return true;
       return '${c.getStringValue('clinic_name')} ${c.getStringValue('doctor_name')} ${c.getStringValue('mobile')} ${c.getStringValue('city')}'
           .contains(_q);
@@ -88,7 +79,7 @@ class _ClinicsScreenState extends State<ClinicsScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
-                for (final f in {'all': 'همه', 'pending': 'در انتظار تایید', ...tierLabels}.entries)
+                for (final f in {'all': 'همه', 'pending': 'در انتظار تایید'}.entries)
                   Padding(
                     padding: const EdgeInsetsDirectional.only(end: 8),
                     child: MPChoiceChip(label: f.value, selected: _filter == f.key, onSelected: (_) => setState(() => _filter = f.key)),
@@ -113,7 +104,6 @@ class _ClinicsScreenState extends State<ClinicsScreen> {
                             itemCount: list.length,
                             itemBuilder: (_, i) {
                               final c = list[i];
-                              final tier = _tiers[c.id] ?? 'bronze';
                               return Glass(
                                 margin: const EdgeInsets.only(bottom: 8),
                                 padding: const EdgeInsets.all(12),
@@ -122,19 +112,14 @@ class _ClinicsScreenState extends State<ClinicsScreen> {
                                     Navigator.pop(context, c);
                                     return;
                                   }
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ClinicAdminScreen(clinic: c, tier: tier),
-                                    ),
-                                  );
+                                  await Navigator.push(context, MaterialPageRoute(builder: (_) => ClinicAdminScreen(clinic: c)));
                                   _load();
                                 },
                                 child: Row(
                                   children: [
                                     CircleAvatar(
                                       radius: 24,
-                                      backgroundColor: Color.lerp(tierColors[tier]!, Colors.white, .62),
+                                      backgroundColor: Color.lerp(MP.pink, Colors.white, .5),
                                       backgroundImage: c.getStringValue('logo').isNotEmpty
                                           ? NetworkImage(Api.fileUrl(c, 'logo', thumb: '200x200').toString())
                                           : null,
@@ -165,7 +150,6 @@ class _ClinicsScreenState extends State<ClinicsScreen> {
                                         padding: EdgeInsets.only(left: 6),
                                         child: Icon(Icons.hourglass_top_rounded, color: MP.warning, size: 20),
                                       ),
-                                    TierBadge(tier),
                                   ],
                                 ),
                               );
@@ -181,37 +165,16 @@ class _ClinicsScreenState extends State<ClinicsScreen> {
   }
 }
 
-class TierBadge extends StatelessWidget {
-  final String tier;
-  const TierBadge(this.tier, {super.key});
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        colors: [Color.lerp(tierColors[tier]!, Colors.white, .30)!, Color.lerp(tierColors[tier]!, Colors.white, .52)!],
-      ),
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: Text(
-      tierLabels[tier] ?? tier,
-      style: const TextStyle(color: MP.plum, fontSize: 11.5, fontWeight: FontWeight.w800),
-    ),
-  );
-}
-
-/// Admin view of a single clinic: approve, tier, contact, orders, chat.
+/// Admin view of a single clinic: approve, contact, orders, accounts, chat.
 class ClinicAdminScreen extends StatefulWidget {
   final RecordModel clinic;
-  final String tier;
-  const ClinicAdminScreen({super.key, required this.clinic, required this.tier});
+  const ClinicAdminScreen({super.key, required this.clinic});
   @override
   State<ClinicAdminScreen> createState() => _ClinicAdminScreenState();
 }
 
 class _ClinicAdminScreenState extends State<ClinicAdminScreen> {
   late RecordModel c = widget.clinic;
-  late String tier = widget.tier;
 
   Future<void> _reload() async {
     final r = await Api.pb.collection('users').getOne(c.id);
@@ -223,16 +186,6 @@ class _ClinicAdminScreenState extends State<ClinicAdminScreen> {
       await Api.pb.collection('users').update(c.id, body: {'approved': v});
       await _reload();
       if (mounted) toast(context, v ? 'همکار تایید شد و اعلان ارسال شد' : 'تایید لغو شد');
-    } catch (e) {
-      if (mounted) toast(context, Api.error(e), error: true);
-    }
-  }
-
-  Future<void> _setTier(String t) async {
-    try {
-      await Api.pb.send('/api/melopet/admin/tiers/${c.id}', method: 'POST', body: {'tier': t});
-      setState(() => tier = t);
-      if (mounted) toast(context, 'سطح قیمت‌گذاری به «${tierLabels[t]}» تغییر کرد');
     } catch (e) {
       if (mounted) toast(context, Api.error(e), error: true);
     }
@@ -269,24 +222,6 @@ class _ClinicAdminScreenState extends State<ClinicAdminScreen> {
                   onChanged: _setApproved,
                   title: const Text('حساب تایید شده', style: TextStyle(fontWeight: FontWeight.w800)),
                   subtitle: const Text('تا تایید نشود، امکان درخواست پیک ندارد'),
-                ),
-                const Divider(),
-                const Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: Text('سطح قیمت‌گذاری (فقط برای ادمین قابل مشاهده است)', style: TextStyle(fontWeight: FontWeight.w800)),
-                ),
-                const SizedBox(height: 8),
-                SegmentedButton<String>(
-                  segments: [
-                    for (final t in ['gold', 'silver', 'bronze'])
-                      ButtonSegment(
-                        value: t,
-                        label: Text(tierLabels[t]!),
-                        icon: Icon(Icons.workspace_premium_rounded, color: tierColors[t]),
-                      ),
-                  ],
-                  selected: {tier},
-                  onSelectionChanged: (s) => _setTier(s.first),
                 ),
               ],
             ),

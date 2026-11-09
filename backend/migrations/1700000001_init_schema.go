@@ -152,7 +152,7 @@ func init() {
 			&core.TextField{Name: "pickup_address", Max: 1000},
 			&core.TextField{Name: "pickup_time", Max: 100},
 			&core.TextField{Name: "clinical_notes", Max: 3000},
-			&core.JSONField{Name: "items", MaxSize: 200000},   // [{test, name, code, category, price}]
+			&core.JSONField{Name: "items", MaxSize: 200000}, // [{test, name, code, category, price}]
 			&core.NumberField{Name: "total"},
 			&core.NumberField{Name: "discount"},
 			&core.TextField{Name: "courier_name", Max: 100},

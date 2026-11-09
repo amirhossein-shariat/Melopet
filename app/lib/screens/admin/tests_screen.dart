@@ -7,7 +7,7 @@ import '../../utils/format.dart';
 import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
 
-/// Admin: test catalog with three private price tiers per test.
+/// Admin: the lab's test list and prices (one price per test; empty = by agreement).
 class TestsScreen extends StatefulWidget {
   const TestsScreen({super.key});
   @override
@@ -109,19 +109,9 @@ class _TestsScreenState extends State<TestsScreen> {
                                 ],
                               ),
                               const SizedBox(height: 4),
-                              Wrap(
-                                spacing: 10,
-                                children: [
-                                  for (final tier in ['gold', 'silver', 'bronze'])
-                                    Text(
-                                      '${tierLabels[tier]}: ${priceText(t.getDoubleValue('price_$tier'), unit: false)}',
-                                      style: TextStyle(
-                                        fontSize: 11.5,
-                                        color: readable(context, tierColors[tier]!),
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                ],
+                              Text(
+                                priceText(t.getDoubleValue('price')),
+                                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: readable(context, MP.pinkDeep)),
                               ),
                             ],
                           ),
@@ -188,11 +178,8 @@ class _TestEditScreenState extends State<TestEditScreen> {
   late final sample = TextEditingController(text: t?.getStringValue('sample_type'));
   late final hours = TextEditingController(text: _num(t?.getDoubleValue('turnaround_hours')));
   late final desc = TextEditingController(text: t?.getStringValue('description'));
-  late final prices = {
-    for (final tier in ['gold', 'silver', 'bronze']) tier: TextEditingController(text: _num(t?.getDoubleValue('price_$tier'))),
-  };
+  late final price = TextEditingController(text: _num(t?.getDoubleValue('price')));
   late String category = t?.getStringValue('category') ?? 'biochemistry';
-  late Set<String> visible = (t?.getListValue<String>('visible_tiers') ?? ['gold', 'silver', 'bronze']).toSet();
   late bool active = t?.getBoolValue('active') ?? true;
   late final List<_ParamDraft> params = ((t?.data['parameters'] as List?) ?? []).map((p) => _ParamDraft.from(p as Map)).toList();
   final _form = GlobalKey<FormState>();
@@ -211,8 +198,7 @@ class _TestEditScreenState extends State<TestEditScreen> {
         'sample_type': sample.text.trim(),
         'turnaround_hours': double.tryParse(enNum(hours.text)) ?? 0,
         'description': desc.text.trim(),
-        for (final e in prices.entries) 'price_${e.key}': double.tryParse(enNum(e.value.text.replaceAll(',', ''))) ?? 0,
-        'visible_tiers': visible.toList(),
+        'price': double.tryParse(enNum(price.text.replaceAll(RegExp(r'[,٬\s]'), ''))) ?? 0,
         'active': active,
         'parameters': params.where((p) => p.name.text.trim().isNotEmpty).map((p) => p.toJson()).toList(),
       };
@@ -270,45 +256,7 @@ class _TestEditScreenState extends State<TestEditScreen> {
               value: category,
               onChanged: (v) => setState(() => category = v),
             ),
-            const SectionTitle('قیمت همکار برای هر سطح ($kCurrency)'),
-            Glass(
-              child: Column(
-                children: [
-                  for (final tier in ['gold', 'silver', 'bronze'])
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 90,
-                          child: Row(
-                            children: [
-                              Icon(Icons.workspace_premium_rounded, color: tierColors[tier]),
-                              const SizedBox(width: 4),
-                              Text(tierLabels[tier]!, style: const TextStyle(fontWeight: FontWeight.w700)),
-                            ],
-                          ),
-                        ),
-                        Expanded(child: Field(prices[tier]!, 'قیمت (خالی = توافقی)', ltr: true, keyboard: TextInputType.number)),
-                        Checkbox(
-                          value: visible.contains(tier),
-                          onChanged: (v) => setState(() => v == true ? visible.add(tier) : visible.remove(tier)),
-                        ),
-                      ],
-                    ),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: TextButton.icon(
-                      onPressed: () => setState(() {
-                        prices['silver']!.text = prices['gold']!.text;
-                        prices['bronze']!.text = prices['gold']!.text;
-                      }),
-                      icon: const Icon(Icons.copy_all_rounded, size: 18),
-                      label: const Text('قیمت طلایی برای هر سه سطح'),
-                    ),
-                  ),
-                  const Text('تیک = این آزمایش در لیست این سطح نمایش داده شود', style: TextStyle(fontSize: 11.5)),
-                ],
-              ),
-            ),
+            Field(price, 'قیمت ($kCurrency) — خالی = توافقی', icon: Icons.payments_rounded, ltr: true, keyboard: TextInputType.number),
             SwitchListTile(value: active, onChanged: (v) => setState(() => active = v), title: const Text('فعال')),
             Field(desc, 'توضیحات', maxLines: 2),
             SectionTitle('پارامترها و محدوده مرجع', action: 'افزودن', onAction: () => setState(() => params.add(_ParamDraft()))),

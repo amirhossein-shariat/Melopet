@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 
 	"github.com/pocketbase/dbx"
@@ -11,15 +11,6 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
-
-// clinicTier returns the private pricing tier of a clinic (default bronze).
-func clinicTier(app core.App, clinicId string) string {
-	r, err := app.FindFirstRecordByFilter("clinic_tiers", "clinic = {:c}", dbx.Params{"c": clinicId})
-	if err != nil || r.GetString("tier") == "" {
-		return "bronze"
-	}
-	return r.GetString("tier")
-}
 
 type catalogItem struct {
 	Id         string  `json:"id"`
@@ -32,20 +23,14 @@ type catalogItem struct {
 	Desc       string  `json:"description"`
 }
 
-// catalogFor returns the tests visible to a clinic with ITS price only.
-// The tier name itself is never sent to the client.
-func catalogFor(app core.App, clinicId string) ([]catalogItem, error) {
-	tier := clinicTier(app, clinicId)
+// catalogFor returns the active tests with their price.
+func catalogFor(app core.App) ([]catalogItem, error) {
 	records, err := app.FindRecordsByFilter("tests", "active = true", "sort,name", 0, 0)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]catalogItem, 0, len(records))
 	for _, r := range records {
-		visible := r.GetStringSlice("visible_tiers")
-		if len(visible) > 0 && !slices.Contains(visible, tier) {
-			continue
-		}
 		out = append(out, catalogItem{
 			Id:         r.Id,
 			Name:       r.GetString("name"),
@@ -53,7 +38,7 @@ func catalogFor(app core.App, clinicId string) ([]catalogItem, error) {
 			Category:   r.GetString("category"),
 			SampleType: r.GetString("sample_type"),
 			Hours:      r.GetFloat("turnaround_hours"),
-			Price:      r.GetFloat("price_" + tier),
+			Price:      r.GetFloat("price"),
 			Desc:       r.GetString("description"),
 		})
 	}
@@ -73,7 +58,8 @@ type orderRequest struct {
 	FileNo        string   `json:"file_no"`
 	SampleType    string   `json:"sample_type"`
 	SampleCount   int      `json:"sample_count"`
-	Urgent        bool     `json:"urgent"`
+	Delivery      string   `json:"delivery"`       // "standard" (free, next round) | "urgent" (quoted fee)
+	DeliveryQuote string   `json:"delivery_quote"` // token from /delivery/quote, required for urgent (clinics)
 	Fasting       bool     `json:"fasting"`
 	PickupAddress string   `json:"pickup_address"`
 	PickupTime    string   `json:"pickup_time"`
@@ -86,14 +72,11 @@ type orderRequest struct {
 func registerRoutes(se *core.ServeEvent) {
 	g := se.Router.Group("/api/melopet")
 	g.Bind(apis.RequireAuth("users"))
+	registerCourierRoutes(g)
 
-	// Tests + the caller's own prices.
+	// The active tests with their prices.
 	g.GET("/catalog", func(e *core.RequestEvent) error {
-		clinicId := e.Auth.Id
-		if isAdmin(e.Auth) && e.Request.URL.Query().Get("clinic") != "" {
-			clinicId = e.Request.URL.Query().Get("clinic")
-		}
-		items, err := catalogFor(e.App, clinicId)
+		items, err := catalogFor(e.App)
 		if err != nil {
 			return e.InternalServerError("", err)
 		}
@@ -140,7 +123,7 @@ func registerRoutes(se *core.ServeEvent) {
 			return e.ForbiddenError("حساب شما هنوز توسط آزمایشگاه تایید نشده است", nil)
 		}
 
-		catalog, err := catalogFor(e.App, clinic.Id)
+		catalog, err := catalogFor(e.App)
 		if err != nil {
 			return e.InternalServerError("", err)
 		}
@@ -162,6 +145,41 @@ func registerRoutes(se *core.ServeEvent) {
 			total += c.Price
 		}
 
+		// ---- delivery: free (next round) or urgent (quoted fee added to the total) ----
+		delivery := body.Delivery
+		if delivery == "" {
+			delivery = "standard"
+		}
+		if delivery != "standard" && delivery != "urgent" {
+			return e.BadRequestError("روش ارسال نامعتبر است", nil)
+		}
+		pickup, hasPickup := pickupPoint(clinic, body.Lat, body.Lon)
+		var dq quote
+		if delivery == "urgent" {
+			if !hasPickup {
+				return e.BadRequestError("برای پیک فوری، موقعیت مکانی مرکز را ثبت کنید", nil)
+			}
+			if t, ok := verifyQuote(body.DeliveryQuote, clinic.Id, pickup); ok {
+				dq = t
+			} else if isAdmin(e.Auth) {
+				// the lab registering on behalf of a clinic: price it right now
+				lab, err := labLocation(e.App)
+				if err != nil {
+					return e.BadRequestError("لوکیشن آزمایشگاه در تنظیمات ثبت نشده است", err)
+				}
+				qr, err := quoter()
+				if err != nil {
+					return e.InternalServerError("", err)
+				}
+				if dq, err = qr.Quote(e.App, pickup, lab); err != nil {
+					return e.BadRequestError("قیمت پیک فوری دریافت نشد", err)
+				}
+			} else {
+				return e.BadRequestError("قیمت پیک فوری منقضی شده است؛ دوباره قیمت را دریافت کنید", nil)
+			}
+			total += dq.Fee
+		}
+
 		col, err := e.App.FindCollectionByNameOrId("orders")
 		if err != nil {
 			return e.InternalServerError("", err)
@@ -179,14 +197,26 @@ func registerRoutes(se *core.ServeEvent) {
 		r.Set("file_no", body.FileNo)
 		r.Set("sample_type", body.SampleType)
 		r.Set("sample_count", body.SampleCount)
-		r.Set("urgent", body.Urgent)
+		r.Set("urgent", delivery == "urgent")
+		r.Set("delivery_type", delivery)
+		r.Set("delivery_fee", dq.Fee)
+		r.Set("delivery_source", dq.Source)
+		r.Set("delivery_distance_km", dq.DistanceKm)
 		r.Set("fasting", body.Fasting)
 		addr := strings.TrimSpace(body.PickupAddress)
 		if addr == "" {
 			addr = clinic.GetString("address")
 		}
 		r.Set("pickup_address", addr)
-		r.Set("pickup_time", body.PickupTime)
+		pickupTime := body.PickupTime
+		if pickupTime == "" {
+			if delivery == "urgent" {
+				pickupTime = "فوری"
+			} else {
+				pickupTime = fmt.Sprintf("تا %d ساعت آینده", pickupIntervalHours(e.App))
+			}
+		}
+		r.Set("pickup_time", pickupTime)
 		r.Set("clinical_notes", body.ClinicalNotes)
 		if len(voice) > 0 {
 			r.Set("history_voice", voice[0])
@@ -302,44 +332,4 @@ func registerRoutes(se *core.ServeEvent) {
 		})
 	})
 
-	// Admin: tiers of all clinics in one call (id -> tier).
-	g.GET("/admin/tiers", func(e *core.RequestEvent) error {
-		if !isAdmin(e.Auth) {
-			return e.ForbiddenError("", nil)
-		}
-		records, err := e.App.FindAllRecords("clinic_tiers")
-		if err != nil {
-			return e.InternalServerError("", err)
-		}
-		out := map[string]string{}
-		for _, r := range records {
-			out[r.GetString("clinic")] = r.GetString("tier")
-		}
-		return e.JSON(http.StatusOK, out)
-	})
-
-	// Admin: set tier of a clinic.
-	g.POST("/admin/tiers/{clinic}", func(e *core.RequestEvent) error {
-		if !isAdmin(e.Auth) {
-			return e.ForbiddenError("", nil)
-		}
-		var body struct {
-			Tier string `json:"tier"`
-		}
-		if err := e.BindBody(&body); err != nil || !slices.Contains([]string{"gold", "silver", "bronze"}, body.Tier) {
-			return e.BadRequestError("invalid tier", err)
-		}
-		clinicId := e.Request.PathValue("clinic")
-		r, err := e.App.FindFirstRecordByFilter("clinic_tiers", "clinic = {:c}", dbx.Params{"c": clinicId})
-		if err != nil {
-			col, _ := e.App.FindCollectionByNameOrId("clinic_tiers")
-			r = core.NewRecord(col)
-			r.Set("clinic", clinicId)
-		}
-		r.Set("tier", body.Tier)
-		if err := e.App.Save(r); err != nil {
-			return e.BadRequestError("", err)
-		}
-		return e.JSON(http.StatusOK, map[string]string{"clinic": clinicId, "tier": body.Tier})
-	})
 }

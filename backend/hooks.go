@@ -82,13 +82,6 @@ func registerHooks(app core.App) {
 
 	app.OnRecordAfterCreateSuccess("users").BindFunc(func(e *core.RecordEvent) error {
 		if e.Record.GetString("role") == "clinic" {
-			// every clinic starts at bronze; admins upgrade privately
-			if col, err := e.App.FindCollectionByNameOrId("clinic_tiers"); err == nil {
-				t := core.NewRecord(col)
-				t.Set("clinic", e.Record.Id)
-				t.Set("tier", "bronze")
-				_ = e.App.Save(t)
-			}
 			name := e.Record.GetString("clinic_name")
 			if name == "" {
 				name = e.Record.GetString("mobile")

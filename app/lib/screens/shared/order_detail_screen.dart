@@ -417,6 +417,27 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 ],
               ),
             ),
+          if (o.getStringValue('delivery_type').isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
+                children: [
+                  Icon(
+                    o.getStringValue('delivery_type') == 'urgent' ? Icons.bolt_rounded : Icons.local_shipping_rounded,
+                    size: 18,
+                    color: readable(context, o.getStringValue('delivery_type') == 'urgent' ? MP.danger : MP.mintDeep),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(o.getStringValue('delivery_type') == 'urgent' ? 'ارسال فوری (پیک اختصاصی)' : 'ارسال عادی')),
+                  Text(
+                    o.getStringValue('delivery_type') == 'urgent' && o.getDoubleValue('delivery_fee') > 0
+                        ? money(o.getDoubleValue('delivery_fee'), unit: false)
+                        : 'رایگان',
+                    key: const Key('order-delivery-fee'),
+                  ),
+                ],
+              ),
+            ),
           const Divider(),
           Row(
             children: [

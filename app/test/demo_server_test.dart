@@ -96,25 +96,21 @@ void main() {
       expect(paged.totalItems, all.length);
     });
 
-    test('price tiers stay private: clinics cannot read tests or tiers, and get only their own price', () async {
-      final gold = await login('09121111111', 'demo1234'); // gold
-      final silver = await login('09122222222', 'demo1234'); // silver
-      expect((await gold.collection('tests').getList()).items, isEmpty);
-      expect((await gold.collection('clinic_tiers').getList()).items, isEmpty);
+    test('one price for everyone: clinics cannot read the tests table, the catalog has the same price for all, no tier routes', () async {
+      final a = await login('09121111111', 'demo1234');
+      final b = await login('09122222222', 'demo1234');
+      expect((await a.collection('tests').getList()).items, isEmpty);
 
       Future<num> cbcPrice(PocketBase pb) async {
         final cat = await pb.send<List<dynamic>>('/api/melopet/catalog');
         return (cat.firstWhere((c) => c['code'] == 'CBC')['price'] as num);
       }
 
-      expect(await cbcPrice(gold), 344000);
-      expect(await cbcPrice(silver), 372000);
-      expect(() => gold.send('/api/melopet/admin/tiers'), throwsA(isA<ClientException>().having((e) => e.statusCode, 'status', 403)));
+      expect(await cbcPrice(a), 400000);
+      expect(await cbcPrice(b), 400000);
       final admin = await login('melopet', 'melopet-admin-1234');
-      final tiers = await admin.send<Map<String, dynamic>>('/api/melopet/admin/tiers');
-      expect(tiers['democlinic0001'], 'gold');
-      await admin.send('/api/melopet/admin/tiers/democlinic0001', method: 'POST', body: {'tier': 'bronze'});
-      expect(await cbcPrice(gold), 400000);
+      expect(() => admin.send('/api/melopet/admin/tiers'), throwsA(isA<ClientException>()));
+      expect(DemoServer.instance.db.containsKey('clinic_tiers'), false);
     });
   });
 

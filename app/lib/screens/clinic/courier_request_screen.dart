@@ -3,16 +3,19 @@ import 'package:latlong2/latlong.dart';
 
 import '../../services/api.dart';
 import '../../services/catalog.dart';
+import '../../services/delivery.dart';
 import '../../theme.dart';
 import '../../utils/format.dart';
+import '../../widgets/delivery_options.dart';
 import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
 import '../../widgets/location.dart';
 import '../../widgets/voice.dart';
 
-/// "درخواست پیک" in two steps:
+/// "درخواست پیک" in three steps:
 ///  1. case info (owner, animal, ...) + case history as text and/or voice — required
-///  2. choose the lab tests (list + search) → send; the lab gets a notification.
+///  2. choose the lab tests (list + search)
+///  3. delivery: free (next courier round, ≤ 4 h) or urgent (quoted fee added to the total) → send
 class CourierRequestScreen extends StatefulWidget {
   /// Admins can create an order on behalf of a clinic.
   final String? clinicId;
@@ -36,9 +39,7 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
   final pickupAddress = TextEditingController();
   String? species;
   String sex = 'unknown';
-  bool urgent = false;
   bool fasting = false;
-  String pickupTime = 'همین حالا';
   VoiceClip? voice;
   LatLng? location;
   bool _historyError = false;
@@ -52,6 +53,11 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
   String _query = '';
   String? _category;
   final _search = TextEditingController();
+
+  // ---- step 3: delivery
+  String _delivery = 'standard';
+  DeliveryOptionsData? _opts;
+  bool _quoting = false;
 
   bool _sending = false;
 
@@ -78,7 +84,7 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
       _catalogError = null;
     });
     try {
-      _catalog = await Catalog.load(clinicId: widget.clinicId);
+      _catalog = await Catalog.load();
       if (mounted) setState(() => _loadingCatalog = false);
     } catch (e) {
       if (mounted) {
@@ -88,6 +94,40 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
         });
       }
     }
+  }
+
+  num get _deliveryFee => _delivery == 'urgent' && (_opts?.urgentAvailable ?? false) ? _opts!.urgentFee : 0;
+  num get _grandTotal => _total + _deliveryFee;
+
+  Future<void> _loadQuote() async {
+    setState(() => _quoting = true);
+    try {
+      final o = await DeliveryOptionsData.fetch(clinicId: widget.clinicId, lat: location?.latitude, lon: location?.longitude);
+      if (mounted) {
+        setState(() {
+          _opts = o;
+          if (!o.urgentAvailable) _delivery = 'standard';
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _opts = null);
+    } finally {
+      if (mounted) setState(() => _quoting = false);
+    }
+  }
+
+  Future<void> _toDelivery() async {
+    if (_selected.isEmpty) {
+      final ok = await confirm(
+        context,
+        'بدون انتخاب آزمایش',
+        'هیچ فاکتوری انتخاب نشده. ادامه می‌دهید و آزمایش‌ها در چت هماهنگ شود؟',
+        ok: 'ادامه',
+      );
+      if (!ok) return;
+    }
+    setState(() => _step = 2);
+    if (_opts == null || _opts!.stale) _loadQuote();
   }
 
   bool get _hasNegotiable => _catalog.any((c) => _selected.contains(c.id) && c.price <= 0);
@@ -108,14 +148,13 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
   }
 
   Future<void> _submit() async {
-    if (_selected.isEmpty) {
-      final ok = await confirm(
-        context,
-        'بدون انتخاب آزمایش',
-        'هیچ فاکتوری انتخاب نشده. پیک ارسال شود و آزمایش‌ها در چت هماهنگ شود؟',
-        ok: 'ارسال پیک',
-      );
-      if (!ok) return;
+    if (_delivery == 'urgent' && (_opts == null || _opts!.stale)) {
+      await _loadQuote();
+      if (!mounted) return;
+      if (_delivery == 'urgent') {
+        toast(context, 'قیمت پیک فوری به‌روز شد؛ مبلغ نهایی را بررسی و دوباره تایید کنید.');
+        return;
+      }
     }
     setState(() => _sending = true);
     try {
@@ -130,9 +169,9 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
         'sex': sex,
         'weight': double.tryParse(enNum(weight.text.trim())) ?? 0,
         'file_no': enNum(fileNo.text.trim()),
-        'urgent': urgent,
+        'delivery': _delivery,
+        if (_delivery == 'urgent') 'delivery_quote': _opts!.quote,
         'fasting': fasting,
-        'pickup_time': pickupTime,
         'pickup_address': pickupAddress.text.trim(),
         'clinical_notes': history.text.trim(),
         if (voice != null) 'history_voice_seconds': voice!.seconds,
@@ -150,8 +189,10 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
         builder: (c) => AlertDialog(
           icon: const GlassIcon(Icons.delivery_dining_rounded, color: MP.success, size: 64),
           title: const Text('درخواست پیک ثبت شد'),
-          content: const Text(
-            'آزمایشگاه ملوپت مطلع شد و به زودی پیک اعزام می‌شود. وضعیت را از بخش سفارش‌ها دنبال کنید.',
+          content: Text(
+            _delivery == 'urgent'
+                ? 'آزمایشگاه ملوپت مطلع شد و پیک فوری اعزام می‌شود. وضعیت را از بخش سفارش‌ها دنبال کنید.'
+                : 'آزمایشگاه ملوپت مطلع شد. پیک در دور بعدی (حداکثر تا ${faNum(_opts?.windowHours ?? 4)} ساعت دیگر) می‌آید. وضعیت را از بخش سفارش‌ها دنبال کنید.',
             textAlign: TextAlign.center,
           ),
           actions: [FilledButton(onPressed: () => Navigator.pop(c), child: const Text('باشه'))],
@@ -159,7 +200,10 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
       );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
-      if (mounted) toast(context, Api.error(e), error: true);
+      if (mounted) {
+        toast(context, Api.error(e), error: true);
+        if (_delivery == 'urgent') _loadQuote();
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -170,7 +214,7 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
     return PopScope(
       canPop: _step == 0,
       onPopInvokedWithResult: (did, _) {
-        if (!did) setState(() => _step = 0);
+        if (!did) setState(() => _step--);
       },
       child: MPScaffold(
         title: 'درخواست پیک',
@@ -180,9 +224,11 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
             Expanded(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 280),
-                child: _step == 0
-                    ? KeyedSubtree(key: const ValueKey(0), child: _caseStep())
-                    : KeyedSubtree(key: const ValueKey(1), child: _testsStep()),
+                child: switch (_step) {
+                  0 => KeyedSubtree(key: const ValueKey(0), child: _caseStep()),
+                  1 => KeyedSubtree(key: const ValueKey(1), child: _testsStep()),
+                  _ => KeyedSubtree(key: const ValueKey(2), child: _deliveryStep()),
+                },
               ),
             ),
           ],
@@ -196,7 +242,7 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () => setState(() => _step = 0),
+                        onPressed: () => setState(() => _step--),
                         icon: const Icon(Icons.arrow_back_rounded),
                         tooltip: 'مرحله قبل',
                       ),
@@ -206,21 +252,29 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${faNum(_selected.length)} فاکتور${_hasNegotiable ? ' • شامل مورد توافقی' : ''}',
+                              _step == 1
+                                  ? '${faNum(_selected.length)} فاکتور${_hasNegotiable ? ' • شامل مورد توافقی' : ''}'
+                                  : (_deliveryFee > 0 ? 'شامل ${money(_deliveryFee)} هزینه پیک' : 'ارسال رایگان'),
                               style: const TextStyle(fontSize: 12),
                             ),
-                            Text(money(_total), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                            Text(
+                              money(_step == 1 ? _total : _grandTotal),
+                              key: const Key('grand-total'),
+                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                            ),
                           ],
                         ),
                       ),
                       SizedBox(
                         width: 160,
-                        child: GradientButton(
-                          label: 'ارسال پیک',
-                          icon: Icons.delivery_dining_rounded,
-                          loading: _sending,
-                          onPressed: _submit,
-                        ),
+                        child: _step == 1
+                            ? GradientButton(label: 'نحوه ارسال', icon: Icons.arrow_forward_rounded, onPressed: _toDelivery)
+                            : GradientButton(
+                                label: 'ثبت و ارسال پیک',
+                                icon: Icons.delivery_dining_rounded,
+                                loading: _sending,
+                                onPressed: _quoting ? null : _submit,
+                              ),
                       ),
                     ],
                   ),
@@ -324,37 +378,17 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
               ],
             ),
           ),
-          const SectionTitle('نمونه و پیک'),
+          const SectionTitle('نمونه و محل دریافت'),
           Glass(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  value: urgent,
-                  onChanged: (v) => setState(() => urgent = v),
-                  title: const Text('فوری (اورژانسی)'),
-                  secondary: const Icon(Icons.bolt_rounded, color: MP.danger),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
                   value: fasting,
                   onChanged: (v) => setState(() => fasting = v),
                   title: const Text('نمونه ناشتا گرفته شده'),
                   secondary: const Icon(Icons.no_food_rounded),
-                ),
-                const SizedBox(height: 6),
-                const Text('زمان مراجعه پیک', style: TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                ChoiceRow(
-                  options: const {
-                    'همین حالا': 'همین حالا',
-                    'تا ۱ ساعت دیگر': 'تا ۱ ساعت دیگر',
-                    'عصر امروز': 'عصر امروز',
-                    'فردا صبح': 'فردا صبح',
-                  },
-                  value: pickupTime,
-                  onChanged: (v) => setState(() => pickupTime = v),
                 ),
                 const SizedBox(height: 14),
                 LocationField(title: 'محل دریافت نمونه', value: location, onChanged: (p) => setState(() => location = p)),
@@ -496,6 +530,70 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
       ],
     );
   }
+
+  // ------------------------------------------------------------ step 3
+  Widget _deliveryStep() {
+    final selected = _catalog.where((c) => _selected.contains(c.id)).toList();
+    Widget line(String label, String value, {bool strong = false, Color? color}) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(label, style: TextStyle(fontWeight: strong ? FontWeight.w900 : FontWeight.w500)),
+          ),
+          Text(
+            value,
+            style: TextStyle(fontWeight: strong ? FontWeight.w900 : FontWeight.w700, fontSize: strong ? 16 : 14, color: color),
+          ),
+        ],
+      ),
+    );
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: [
+        const SectionTitle('نحوه ارسال'),
+        DeliveryOptions(
+          data: _opts,
+          loading: _quoting,
+          value: _delivery,
+          onChanged: (v) => setState(() => _delivery = v),
+          onRetry: _loadQuote,
+        ),
+        if (_opts != null && !_opts!.urgentAvailable && _opts!.urgentReason == 'location')
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: TextButton.icon(
+              onPressed: () => setState(() => _step = 0),
+              icon: const Icon(Icons.edit_location_alt_rounded),
+              label: const Text('ثبت محل دریافت نمونه'),
+            ),
+          ),
+        const SectionTitle('خلاصه سفارش'),
+        Glass(
+          child: Column(
+            children: [
+              for (final c in selected) line(c.name, priceText(c.price, unit: false)),
+              if (selected.isEmpty) const Text('آزمایشی انتخاب نشده؛ فاکتور در چت هماهنگ می‌شود.'),
+              const Divider(height: 22),
+              line('جمع آزمایش‌ها', money(_total)),
+              line(
+                _delivery == 'urgent' ? 'هزینه پیک فوری' : 'هزینه ارسال',
+                _delivery == 'urgent' ? money(_deliveryFee) : 'رایگان',
+                color: _delivery == 'urgent' ? null : readable(context, MP.success),
+              ),
+              const Divider(height: 22),
+              line('مبلغ قابل پرداخت', money(_grandTotal), strong: true),
+              if (_hasNegotiable)
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Text('قیمت موارد «توافقی» جدا از این مبلغ اعلام می‌شود.', style: TextStyle(fontSize: 12)),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _StepHeader extends StatelessWidget {
@@ -529,9 +627,11 @@ class _StepHeader extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            dot(0, '۱. اطلاعات کیس', Icons.pets_rounded),
+            dot(0, '۱. کیس', Icons.pets_rounded),
             Container(width: 24, height: 2, color: step > 0 ? cs.primary : cs.primary.withValues(alpha: .2)),
             dot(1, '۲. فاکتورها', Icons.science_rounded),
+            Container(width: 24, height: 2, color: step > 1 ? cs.primary : cs.primary.withValues(alpha: .2)),
+            dot(2, '۳. ارسال', Icons.local_shipping_rounded),
           ],
         ),
       ),

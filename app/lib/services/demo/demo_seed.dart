@@ -35,6 +35,10 @@ void seedDemoData(DemoServer s) {
     'card_number': '6037997012345678',
     'card_holder': 'آزمایشگاه دامپزشکی ملوپت (نمونه)',
     'bank_name': 'بانک ملی',
+    'urgent_base_fee': 50000,
+    'urgent_per_km': 10000,
+    'urgent_min_fee': 80000,
+    'pickup_interval_hours': 4,
   });
 
   // -------------------------------------------------------------------- users
@@ -60,7 +64,6 @@ void seedDemoData(DemoServer s) {
     double lat,
     double lon, {
     bool approved = true,
-    String tier = 'bronze',
     int daysAgo = 30,
   }) {
     final c = s.newRecord(
@@ -96,7 +99,6 @@ void seedDemoData(DemoServer s) {
       id: id,
       created: ago(d: daysAgo),
     );
-    s.newRecord('clinic_tiers', {'clinic': id, 'tier': tier, 'note': ''});
     return c;
   }
 
@@ -110,7 +112,6 @@ void seedDemoData(DemoServer s) {
     'تهران، خیابان ولیعصر، کوچه گلها، پلاک ۱۲',
     35.7219,
     51.3347,
-    tier: 'gold',
   );
   clinic(
     'democlinic0002',
@@ -122,7 +123,6 @@ void seedDemoData(DemoServer s) {
     'کرج، گوهردشت، بلوار ارم',
     35.8200,
     50.9300,
-    tier: 'silver',
     daysAgo: 12,
   );
   clinic(
@@ -149,17 +149,14 @@ void seedDemoData(DemoServer s) {
 
   var sort = 0;
   final tests = <String, Map<String, dynamic>>{};
-  void test(String name, String code, String category, String sample, int hours, int bronze, List<Map<String, dynamic>> params) {
+  void test(String name, String code, String category, String sample, int hours, int price, List<Map<String, dynamic>> params) {
     tests[code] = s.newRecord('tests', {
       'name': name,
       'code': code,
       'category': category,
       'sample_type': sample,
       'turnaround_hours': hours,
-      'price_bronze': bronze,
-      'price_silver': (bronze * 0.93 / 1000).round() * 1000,
-      'price_gold': (bronze * 0.86 / 1000).round() * 1000,
-      'visible_tiers': ['gold', 'silver', 'bronze'],
+      'price': price,
       'active': true,
       'sort': ++sort,
       'description': '',
@@ -257,7 +254,6 @@ void seedDemoData(DemoServer s) {
   test('Parvo (CPV) Ag', 'CPV', 'serology', 'مدفوع', 4, 300000, []);
 
   // ------------------------------------------------------------------- orders
-  const tierOf = {'democlinic0001': 'gold', 'democlinic0002': 'silver', 'democlinic0003': 'bronze'};
 
   Map<String, dynamic> order(
     String clinicId,
@@ -276,16 +272,9 @@ void seedDemoData(DemoServer s) {
     String comment = '',
     bool courier = false,
   }) {
-    final tier = tierOf[clinicId]!;
     final items = [
       for (final c in codes)
-        {
-          'test': tests[c]!['id'],
-          'name': tests[c]!['name'],
-          'code': c,
-          'category': tests[c]!['category'],
-          'price': tests[c]!['price_$tier'],
-        },
+        {'test': tests[c]!['id'], 'name': tests[c]!['name'], 'code': c, 'category': tests[c]!['category'], 'price': tests[c]!['price']},
     ];
     final c = clinicId == 'democlinic0001' ? {'lat': 35.7219, 'lon': 51.3347} : {'lat': 35.8200, 'lon': 50.9300};
     final created0 = created ?? ago(h: 2);
@@ -307,14 +296,18 @@ void seedDemoData(DemoServer s) {
       'sample_type': '',
       'sample_count': 1,
       'urgent': urgent,
+      'delivery_type': urgent ? 'urgent' : 'standard',
+      'delivery_fee': urgent ? 120000 : 0,
+      'delivery_source': urgent ? 'estimate' : '',
+      'delivery_distance_km': urgent ? 9.4 : 0,
       'fasting': false,
       'pickup_address': '',
-      'pickup_time': 'همین حالا',
+      'pickup_time': urgent ? 'فوری' : 'تا ۴ ساعت آینده',
       'clinical_notes': history,
       'history_voice_seconds': 0,
       'location': c,
       'items': items,
-      'total': items.fold<int>(0, (a, i) => a + (i['price'] as int)),
+      'total': items.fold<int>(0, (a, i) => a + (i['price'] as int)) + (urgent ? 120000 : 0),
       'discount': 0,
       'courier_name': courier ? 'علی محمدی' : '',
       'courier_phone': courier ? '09351234567' : '',

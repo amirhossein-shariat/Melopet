@@ -1,6 +1,6 @@
 import 'api.dart';
 
-/// A test as a clinic sees it: with ITS own price (tier never exposed).
+/// A test of the lab's price list (one price for everyone; 0 = by agreement).
 class CatalogItem {
   final String id;
   final String name;
@@ -23,8 +23,8 @@ class CatalogItem {
 }
 
 class Catalog {
-  static Future<List<CatalogItem>> load({String? clinicId}) async {
-    final res = await Api.pb.send<List<dynamic>>('/api/melopet/catalog', query: {'clinic': ?clinicId});
+  static Future<List<CatalogItem>> load() async {
+    final res = await Api.pb.send<List<dynamic>>('/api/melopet/catalog');
     return res.map((e) => CatalogItem.fromJson(Map<String, dynamic>.from(e as Map))).toList();
   }
 }

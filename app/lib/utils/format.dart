@@ -146,9 +146,6 @@ const clinicTypeLabels = {
   'other': 'سایر',
 };
 
-const tierLabels = {'gold': 'طلایی', 'silver': 'نقره‌ای', 'bronze': 'برنزی'};
-const tierColors = {'gold': Color(0xFFE2B33C), 'silver': Color(0xFF9EA7B3), 'bronze': Color(0xFFC07A4A)};
-
 class CategoryInfo {
   final String label;
   final String en;

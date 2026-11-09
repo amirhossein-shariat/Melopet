@@ -62,13 +62,13 @@ const sheet = <String, int?>{
 void main() {
   setUp(() => DemoServer.instance.reset());
 
-  test('demo catalog has every test of the price list with the right price (bronze = list price)', () {
+  test('demo catalog has every test of the price list with the right price ', () {
     final tests = DemoServer.instance.col('tests');
     final byCode = {for (final t in tests) (t['code'] as String).toUpperCase(): t};
     for (final e in sheet.entries) {
       final t = byCode[e.key];
       expect(t, isNotNull, reason: 'missing ${e.key}');
-      expect(t!['price_bronze'], (e.value ?? 0) * 1000, reason: e.key);
+      expect(t!['price'], (e.value ?? 0) * 1000, reason: e.key);
     }
   });
 
@@ -92,22 +92,10 @@ void main() {
     await admin.collection('users').authWithPassword('melopet', 'melopet-admin-1234');
     final t = await admin
         .collection('tests')
-        .create(
-          body: {
-            'name': 'تست نو',
-            'code': 'NEW1',
-            'category': 'biochemistry',
-            'price_gold': 1000,
-            'price_silver': 1000,
-            'price_bronze': 1000,
-            'visible_tiers': ['gold', 'silver', 'bronze'],
-            'active': true,
-            'parameters': [],
-          },
-        );
-    await admin.collection('tests').update(t.id, body: {'price_bronze': 0, 'active': false});
+        .create(body: {'name': 'تست نو', 'code': 'NEW1', 'category': 'biochemistry', 'price': 1000, 'active': true, 'parameters': []});
+    await admin.collection('tests').update(t.id, body: {'price': 0, 'active': false});
     final got = await admin.collection('tests').getOne(t.id);
-    expect(got.getDoubleValue('price_bronze'), 0);
+    expect(got.getDoubleValue('price'), 0);
     expect(got.getBoolValue('active'), false);
 
     final clinic = client();

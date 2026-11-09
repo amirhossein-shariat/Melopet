@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../services/api.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
+import '../../utils/format.dart';
 import '../../widgets/form_bits.dart';
 import '../../widgets/glass.dart';
 import '../../utils/schedule.dart';
@@ -106,8 +107,20 @@ class _LabSettingsScreenState extends State<LabSettingsScreen> {
     'bank_name': 'نام بانک',
     'about': 'درباره ما',
   };
+
+  /// Fees for the urgent courier estimate and the length of the lab's pick-up round.
+  static const _courierFields = {
+    'urgent_base_fee': 'پیک فوری: مبلغ پایه ($kCurrency)',
+    'urgent_per_km': 'پیک فوری: هر کیلومتر ($kCurrency)',
+    'urgent_min_fee': 'پیک فوری: حداقل مبلغ ($kCurrency)',
+    'pickup_interval_hours': 'فاصله دورهای جمع‌آوری پیک رایگان (ساعت)',
+  };
   late final s = context.read<AppState>().settings;
-  late final c = {for (final f in _fields.keys) f: TextEditingController(text: s?.getStringValue(f))};
+  late final c = {
+    for (final f in _fields.keys) f: TextEditingController(text: s?.getStringValue(f)),
+    for (final f in _courierFields.keys) f: TextEditingController(text: _num(s?.getDoubleValue(f))),
+  };
+  static String _num(double? v) => v == null || v == 0 ? '' : (v == v.roundToDouble() ? '${v.toInt()}' : '$v');
   bool _saving = false;
   late LatLng? location = geoOf(s, 'location');
   late WorkSchedule schedule = WorkSchedule.fromJson(s?.data['work_schedule']);
@@ -123,7 +136,10 @@ class _LabSettingsScreenState extends State<LabSettingsScreen> {
           .update(
             s!.id,
             body: {
-              for (final e in c.entries) e.key: e.value.text.trim(),
+              for (final e in c.entries)
+                e.key: _courierFields.containsKey(e.key)
+                    ? (double.tryParse(enNum(e.value.text.replaceAll(RegExp(r'[,٬\s]'), ''))) ?? 0)
+                    : e.value.text.trim(),
               'working_hours': schedule.summary,
               'work_schedule': schedule.toJson(),
               if (location != null) 'location': geoJson(location!),
@@ -159,6 +175,16 @@ class _LabSettingsScreenState extends State<LabSettingsScreen> {
                 ltr: const ['phone', 'mobile', 'whatsapp', 'telegram', 'instagram', 'email', 'website', 'card_number'].contains(e.key),
               ),
             WorkScheduleField(initial: schedule, onChanged: (s) => schedule = s),
+            const SectionTitle('پیک و ارسال'),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 10),
+              child: Text(
+                'ارسال عادی رایگان است و پیک آزمایشگاه هر چند ساعت یک دور می‌آید. هزینه ارسال فوری از روی فاصله‌ی محل مرکز تا آزمایشگاه '
+                'تخمین زده می‌شود (تا زمانی که به سرویس پیک وصل شویم) و به مبلغ سفارش اضافه می‌شود.',
+                style: TextStyle(fontSize: 12.5, height: 1.6),
+              ),
+            ),
+            for (final e in _courierFields.entries) Field(c[e.key]!, e.value, ltr: true, keyboard: TextInputType.number),
             LocationField(
               title: 'لوکیشن آزمایشگاه (در «تماس با ما» و مسیریابی نشان)',
               value: location,

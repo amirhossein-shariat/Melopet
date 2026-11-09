@@ -37,6 +37,8 @@ import 'package:melopet/screens/shared/orders_screen.dart';
 import 'package:melopet/screens/shared/promotions_screen.dart';
 import 'package:melopet/screens/shared/statement_screen.dart';
 import 'package:melopet/services/api.dart';
+import 'package:melopet/services/delivery.dart';
+import 'package:melopet/widgets/delivery_options.dart';
 import 'package:melopet/services/demo/demo_server.dart';
 import 'package:melopet/state/app_state.dart';
 import 'package:melopet/theme.dart';
@@ -254,6 +256,45 @@ void main() {
     'clinic-profile': (() => const ProfileScreen(), false),
     'clinic-contact': (() => const ContactScreen(), false),
     'clinic-statement': (() => const StatementScreen(), false),
+    'clinic-delivery': (
+      () => MPScaffold(
+        title: 'نحوه ارسال',
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: DeliveryOptions(
+            data: DeliveryOptionsData(
+              windowHours: 4,
+              urgentAvailable: true,
+              urgentFee: 153000,
+              source: 'estimate',
+              distanceKm: 10.3,
+              quote: 'q',
+            ),
+            loading: false,
+            value: 'urgent',
+            onChanged: (_) {},
+            onRetry: () {},
+          ),
+        ),
+      ),
+      false,
+    ),
+    'clinic-delivery-unavailable': (
+      () => MPScaffold(
+        title: 'نحوه ارسال',
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: DeliveryOptions(
+            data: DeliveryOptionsData(windowHours: 4, urgentAvailable: false, urgentReason: 'location'),
+            loading: false,
+            value: 'standard',
+            onChanged: (_) {},
+            onRetry: () {},
+          ),
+        ),
+      ),
+      false,
+    ),
     'clinic-prices': (() => const PriceListScreen(), false),
     'clinic-courier': (() => const CourierRequestScreen(), false),
     'clinic-edit-profile': (() => const EditProfileScreen(), false),
@@ -285,7 +326,7 @@ void main() {
   testWidgets('contrast: admin clinic + result entry', (t) async {
     await audit(t, 'admin-clinic', () {
       final c = DemoServer.instance.col('users').firstWhere((u) => u['id'] == 'democlinic0001');
-      return ClinicAdminScreen(clinic: _rec(c), tier: 'gold');
+      return ClinicAdminScreen(clinic: _rec(c));
     }, admin: true);
     await audit(t, 'admin-result-entry', () {
       final o = DemoServer.instance.col('orders').firstWhere((o) => o['status'] == 'courier_assigned');

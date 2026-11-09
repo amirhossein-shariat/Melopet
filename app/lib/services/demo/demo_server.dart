@@ -32,7 +32,6 @@ class DemoServer {
 
   static const _collectionIds = {
     'users': '_pb_users_auth_',
-    'clinic_tiers': 'pbc_clinic_tiers',
     'tests': 'pbc_tests',
     'orders': 'pbc_orders',
     'promotions': 'pbc_promotions',
@@ -48,7 +47,6 @@ class DemoServer {
     'conversations': {'clinic': 'users'},
     'messages': {'conversation': 'conversations', 'sender': 'users', 'reply_to': 'messages'},
     'notifications': {'user': 'users'},
-    'clinic_tiers': {'clinic': 'users'},
     'payments': {'clinic': 'users'},
   };
 
@@ -190,7 +188,6 @@ class DemoServer {
       case 'users':
         return admin || r['id'] == me['id'];
       case 'tests':
-      case 'clinic_tiers':
         return admin;
       case 'orders':
       case 'conversations':
@@ -632,7 +629,6 @@ class DemoServer {
     switch (c) {
       case 'users':
         if (rec['role'] == 'clinic') {
-          newRecord('clinic_tiers', {'clinic': rec['id'], 'tier': 'bronze', 'note': ''});
           notify(
             audience: 'admins',
             title: 'همکار جدید ثبت‌نام کرد',
@@ -801,10 +797,10 @@ class DemoServer {
     final admin = _isAdmin(me);
 
     if (route == 'catalog' && method == 'GET') {
-      final clinicId = admin && (q['clinic'] ?? '').isNotEmpty ? q['clinic']! : me['id'] as String;
-      return _ok(_catalog(clinicId));
+      return _ok(_catalog());
     }
 
+    if (route == 'delivery/quote' && method == 'POST') return _deliveryQuote(body, me);
     if (route == 'orders' && method == 'POST') return _createOrder(body, me);
 
     if (s.length == 3 && s[0] == 'orders' && s[2] == 'cancel' && method == 'POST') {
@@ -865,43 +861,104 @@ class DemoServer {
           'unread_chats': col('conversations').fold<num>(0, (a, c) => a + ((c['unread_admin'] ?? 0) as num)),
         });
       }
-      if (route == 'admin/tiers' && method == 'GET') {
-        return _ok({for (final t in col('clinic_tiers')) t['clinic'] as String: t['tier']});
-      }
-      if (s.length == 3 && s[0] == 'admin' && s[1] == 'tiers' && method == 'POST') {
-        final tier = '${body.json['tier']}';
-        if (!['gold', 'silver', 'bronze'].contains(tier)) throw _Err(400, 'invalid tier');
-        final row = _findBy('clinic_tiers', 'clinic', s[2]) ?? newRecord('clinic_tiers', {'clinic': s[2], 'note': ''});
-        row['tier'] = tier;
-        return _ok({'clinic': s[2], 'tier': tier});
-      }
     } else if (route.startsWith('admin/')) {
       throw _Err(403, 'Forbidden.');
     }
     throw _Err(404, 'The requested resource wasn\'t found.');
   }
 
-  String _tierOf(String clinicId) =>
-      _s(_findBy('clinic_tiers', 'clinic', clinicId), 'tier').isEmpty ? 'bronze' : _s(_findBy('clinic_tiers', 'clinic', clinicId), 'tier');
-
-  List<Map<String, dynamic>> _catalog(String clinicId) {
-    final tier = _tierOf(clinicId);
+  List<Map<String, dynamic>> _catalog() {
     final tests = col('tests').where((t) => t['active'] == true).toList();
     _sort(tests, 'sort,name');
     return [
       for (final t in tests)
-        if ((t['visible_tiers'] as List? ?? []).isEmpty || (t['visible_tiers'] as List).contains(tier))
-          {
-            'id': t['id'],
-            'name': t['name'],
-            'code': t['code'],
-            'category': t['category'],
-            'sample_type': t['sample_type'],
-            'turnaround_hours': t['turnaround_hours'],
-            'price': t['price_$tier'],
-            'description': t['description'],
-          },
+        {
+          'id': t['id'],
+          'name': t['name'],
+          'code': t['code'],
+          'category': t['category'],
+          'sample_type': t['sample_type'],
+          'turnaround_hours': t['turnaround_hours'],
+          'price': t['price'],
+          'description': t['description'],
+        },
     ];
+  }
+
+  // ---- delivery: free next round, or urgent with a quoted fee added to the order total.
+  // Same rules as the backend (courier.go): the built-in estimate is distance based and the
+  // quote is bound to the clinic and the pick-up point.
+  static const _quoteMinutes = 15;
+
+  Map<String, dynamic> _lab() => col('settings').isEmpty ? <String, dynamic>{} : col('settings').first;
+
+  ({double lat, double lon})? _point(Map<String, dynamic> clinic, double? lat, double? lon) {
+    if (lat != null && lon != null && (lat != 0 || lon != 0)) return (lat: lat, lon: lon);
+    final g = clinic['location'];
+    if (g is Map && ((g['lat'] as num?) != 0 || (g['lon'] as num?) != 0)) {
+      return (lat: (g['lat'] as num).toDouble(), lon: (g['lon'] as num).toDouble());
+    }
+    return null;
+  }
+
+  double _km(double lat1, double lon1, double lat2, double lon2) {
+    double rad(double d) => d * pi / 180;
+    final h = pow(sin(rad(lat2 - lat1) / 2), 2) + cos(rad(lat1)) * cos(rad(lat2)) * pow(sin(rad(lon2 - lon1) / 2), 2);
+    return 2 * 6371 * asin(sqrt(h));
+  }
+
+  Map<String, dynamic> _estimate(({double lat, double lon}) from) {
+    final lab = _lab();
+    final g = lab['location'] as Map?;
+    final km = (_km(from.lat, from.lon, (g!['lat'] as num).toDouble(), (g['lon'] as num).toDouble()) * 1.3 * 10).round() / 10;
+    num fee = ((lab['urgent_base_fee'] as num?) ?? 0) + km * ((lab['urgent_per_km'] as num?) ?? 0);
+    final min = (lab['urgent_min_fee'] as num?) ?? 0;
+    if (fee < min) fee = min;
+    return {'fee': (fee / 1000).round() * 1000, 'km': km};
+  }
+
+  String _quoteToken(String clinicId, ({double lat, double lon}) p, Map<String, dynamic> q) =>
+      'demo-quote|$clinicId|${p.lat.toStringAsFixed(5)}|${p.lon.toStringAsFixed(5)}|${q['fee']}|${q['km']}|${DateTime.now().millisecondsSinceEpoch}';
+
+  Map<String, dynamic>? _verifyQuote(String token, String clinicId, ({double lat, double lon}) p) {
+    final parts = token.split('|');
+    if (parts.length != 7 || parts[0] != 'demo-quote' || parts[1] != clinicId) return null;
+    if (parts[2] != p.lat.toStringAsFixed(5) || parts[3] != p.lon.toStringAsFixed(5)) return null;
+    final at = int.tryParse(parts[6]) ?? 0;
+    if (DateTime.now().millisecondsSinceEpoch - at > _quoteMinutes * 60000) return null;
+    return {'fee': num.parse(parts[4]), 'km': num.parse(parts[5])};
+  }
+
+  _Res _deliveryQuote(_Body b, Map<String, dynamic> me) {
+    final d = b.json;
+    var clinic = me;
+    if (_isAdmin(me)) {
+      final c = find('users', _s(d, 'clinic'));
+      if (c == null) throw _Err(400, 'کلینیک را انتخاب کنید');
+      clinic = c;
+    }
+    final hours = ((_lab()['pickup_interval_hours'] as num?) ?? 4).toInt();
+    final out = <String, dynamic>{
+      'standard': {'fee': 0, 'window_hours': hours},
+    };
+    final from = _point(clinic, (d['lat'] as num?)?.toDouble(), (d['lon'] as num?)?.toDouble());
+    final g = _lab()['location'];
+    if (from == null) {
+      out['urgent'] = {'available': false, 'reason': 'location'};
+    } else if (g is! Map) {
+      out['urgent'] = {'available': false, 'reason': 'lab_location'};
+    } else {
+      final q = _estimate(from);
+      out['urgent'] = {
+        'available': true,
+        'fee': q['fee'],
+        'source': 'estimate',
+        'distance_km': q['km'],
+        'quote': _quoteToken(clinic['id'] as String, from, q),
+        'valid_minutes': _quoteMinutes,
+      };
+    }
+    return _ok(out);
   }
 
   _Res _createOrder(_Body b, Map<String, dynamic> me) {
@@ -921,7 +978,7 @@ class DemoServer {
       throw _Err(400, 'نام حیوان، نام صاحب و نوع حیوان الزامی است.');
     }
 
-    final catalog = {for (final c in _catalog(clinic['id'])) c['id'] as String: c};
+    final catalog = {for (final c in _catalog()) c['id'] as String: c};
     final items = <Map<String, dynamic>>[];
     num total = 0;
     for (final id in List<String>.from(d['tests'] ?? const [])) {
@@ -933,6 +990,25 @@ class DemoServer {
 
     final addr = _s(d, 'pickup_address').trim();
     final lat = (d['lat'] as num?)?.toDouble(), lon = (d['lon'] as num?)?.toDouble();
+
+    final delivery = _s(d, 'delivery').isEmpty ? 'standard' : _s(d, 'delivery');
+    if (delivery != 'standard' && delivery != 'urgent') throw _Err(400, 'روش ارسال نامعتبر است.');
+    num deliveryFee = 0;
+    num deliveryKm = 0;
+    if (delivery == 'urgent') {
+      final from = _point(clinic, lat, lon);
+      if (from == null) throw _Err(400, 'برای پیک فوری، موقعیت مکانی مرکز را ثبت کنید.');
+      var q = _verifyQuote(_s(d, 'delivery_quote'), clinic['id'] as String, from);
+      if (q == null && admin && _lab()['location'] is Map) q = _estimate(from);
+      if (q == null) throw _Err(400, 'قیمت پیک فوری منقضی شده است؛ دوباره قیمت را دریافت کنید.');
+      deliveryFee = q['fee'] as num;
+      deliveryKm = q['km'] as num;
+      total += deliveryFee;
+    }
+    final hours = ((_lab()['pickup_interval_hours'] as num?) ?? 4).toInt();
+    final pickupTime = _s(d, 'pickup_time').isNotEmpty
+        ? _s(d, 'pickup_time')
+        : (delivery == 'urgent' ? 'فوری' : 'تا ${faNum(hours)} ساعت آینده');
     final status = 'requested';
     final rec = newRecord('orders', {
       'code': 'MP-${10001 + col('orders').length}',
@@ -949,12 +1025,16 @@ class DemoServer {
         'file_no',
         'sample_type',
         'sample_count',
-        'urgent',
         'fasting',
-        'pickup_time',
         'clinical_notes',
       ])
-        k: d[k] ?? (k == 'urgent' || k == 'fasting' ? false : ''),
+        k: d[k] ?? (k == 'fasting' ? false : ''),
+      'urgent': delivery == 'urgent',
+      'delivery_type': delivery,
+      'delivery_fee': deliveryFee,
+      'delivery_source': delivery == 'urgent' ? 'estimate' : '',
+      'delivery_distance_km': deliveryKm,
+      'pickup_time': pickupTime,
       'pickup_address': addr.isEmpty ? _s(clinic, 'address') : addr,
       'history_voice_seconds': d['history_voice_seconds'] ?? 0,
       'location': (lat != null && lon != null && (lat != 0 || lon != 0)) ? {'lat': lat, 'lon': lon} : clinic['location'],
