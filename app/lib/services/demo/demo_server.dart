@@ -801,6 +801,7 @@ class DemoServer {
     }
 
     if (route == 'delivery/quote' && method == 'POST') return _deliveryQuote(body, me);
+    if (route == 'promo/check' && method == 'POST') return _promoCheck(body);
     if (route == 'orders' && method == 'POST') return _createOrder(body, me);
 
     if (s.length == 3 && s[0] == 'orders' && s[2] == 'cancel' && method == 'POST') {
@@ -857,7 +858,9 @@ class DemoServer {
           'orders_total': orders.length,
           'clinics': clinics.length,
           'clinics_pending': clinics.where((u) => u['approved'] != true).length,
-          'revenue': orders.where((o) => o['status'] != 'cancelled').fold<num>(0, (a, o) => a + ((o['total'] ?? 0) as num)),
+          'revenue': orders
+              .where((o) => o['status'] != 'cancelled')
+              .fold<num>(0, (a, o) => a + ((o['total'] ?? 0) as num) - ((o['discount'] ?? 0) as num)),
           'unread_chats': col('conversations').fold<num>(0, (a, c) => a + ((c['unread_admin'] ?? 0) as num)),
         });
       }
@@ -927,6 +930,36 @@ class DemoServer {
     final at = int.tryParse(parts[6]) ?? 0;
     if (DateTime.now().millisecondsSinceEpoch - at > _quoteMinutes * 60000) return null;
     return {'fee': num.parse(parts[4]), 'km': num.parse(parts[5])};
+  }
+
+  // ---- discount codes (same rules as backend promo.go)
+  Map<String, dynamic> _applyPromo(String code, num subtotal) {
+    final c = code.trim();
+    if (c.isEmpty) throw _Err(400, 'کد تخفیف معتبر نیست.');
+    for (final p in col('promotions')) {
+      if (p['active'] != true || _s(p, 'code').trim().toLowerCase() != c.toLowerCase()) continue;
+      final pct = (p['discount_percent'] as num?) ?? 0;
+      if (pct <= 0) continue;
+      final until = DateTime.tryParse(_s(p, 'valid_until').replaceFirst(' ', 'T'));
+      if (until != null && until.isBefore(DateTime.now())) throw _Err(400, 'مهلت این کد تخفیف تمام شده است.');
+      return {
+        'code': _s(p, 'code').trim().toUpperCase(),
+        'title': _s(p, 'title'),
+        'percent': pct,
+        'subtotal': subtotal,
+        'discount': (subtotal * pct / 100).round(),
+      };
+    }
+    throw _Err(400, 'کد تخفیف معتبر نیست.');
+  }
+
+  _Res _promoCheck(_Body b) {
+    final catalog = {for (final c in _catalog()) c['id'] as String: c};
+    num subtotal = 0;
+    for (final id in List<String>.from(b.json['tests'] ?? const [])) {
+      subtotal += (catalog[id]?['price'] as num?) ?? 0;
+    }
+    return _ok(_applyPromo(_s(b.json, 'code'), subtotal));
   }
 
   _Res _deliveryQuote(_Body b, Map<String, dynamic> me) {
@@ -1005,6 +1038,8 @@ class DemoServer {
       deliveryKm = q['km'] as num;
       total += deliveryFee;
     }
+    Map<String, dynamic>? promo;
+    if (_s(d, 'promo_code').trim().isNotEmpty) promo = _applyPromo(_s(d, 'promo_code'), total - deliveryFee);
     final hours = ((_lab()['pickup_interval_hours'] as num?) ?? 4).toInt();
     final pickupTime = _s(d, 'pickup_time').isNotEmpty
         ? _s(d, 'pickup_time')
@@ -1040,7 +1075,8 @@ class DemoServer {
       'location': (lat != null && lon != null && (lat != 0 || lon != 0)) ? {'lat': lat, 'lon': lon} : clinic['location'],
       'items': items,
       'total': total,
-      'discount': 0,
+      'discount': promo?['discount'] ?? 0,
+      'discount_code': promo?['code'] ?? '',
       'courier_name': '',
       'courier_phone': '',
       'results': null,

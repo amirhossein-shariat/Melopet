@@ -7,6 +7,7 @@ import '../../services/api.dart';
 import '../../services/export.dart';
 import '../../state/app_state.dart';
 import '../../theme.dart';
+import '../../utils/accounting.dart';
 import '../../utils/format.dart';
 import '../../utils/results.dart';
 import '../../widgets/form_bits.dart';
@@ -439,12 +440,34 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ),
             ),
           const Divider(),
+          if (o.getDoubleValue('discount') > 0) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    o.getStringValue('discount_code').isEmpty ? 'تخفیف' : 'تخفیف (کد ${o.getStringValue('discount_code')})',
+                    style: TextStyle(color: readable(context, MP.success), fontWeight: FontWeight.w700),
+                  ),
+                ),
+                Text(
+                  '− ${money(o.getDoubleValue('discount'), unit: false)}',
+                  key: const Key('order-discount'),
+                  style: TextStyle(color: readable(context, MP.success), fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+          ],
           Row(
             children: [
               const Expanded(
-                child: Text('جمع کل', style: TextStyle(fontWeight: FontWeight.w800)),
+                child: Text('مبلغ قابل پرداخت', style: TextStyle(fontWeight: FontWeight.w800)),
               ),
-              Text(money(o.getDoubleValue('total')), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              Text(
+                money(Statement.orderAmount(o)),
+                key: const Key('order-payable'),
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+              ),
             ],
           ),
         ],
@@ -682,8 +705,8 @@ class ResultCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          Expanded(flex: 2, child: Text(p.unit, style: const TextStyle(fontSize: 11))),
-                          Expanded(flex: 2, child: Text(p.range, style: const TextStyle(fontSize: 11))),
+                          Expanded(flex: 2, child: UnitText(p.unit, style: const TextStyle(fontSize: 11))),
+                          Expanded(flex: 2, child: LtrText(p.range, style: const TextStyle(fontSize: 11))),
                         ],
                       ),
                     ),

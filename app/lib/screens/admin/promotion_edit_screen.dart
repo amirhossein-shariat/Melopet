@@ -34,7 +34,7 @@ class _PromotionEditScreenState extends State<PromotionEditScreen> {
   static const _colors = ['#F4A6C0', '#C7B5F2', '#8FD8C8', '#FFCBA8', '#A9D4F5', '#F7D774'];
 
   Future<void> _save() async {
-    if (!_form.currentState!.validate()) return;
+    if (!validateForm(context, _form)) return;
     setState(() => _saving = true);
     try {
       final data = {

@@ -128,7 +128,7 @@ class _LabSettingsScreenState extends State<LabSettingsScreen> {
 
   Future<void> _save() async {
     if (s == null) return;
-    if (!_form.currentState!.validate()) return;
+    if (!validateForm(context, _form)) return;
     setState(() => _saving = true);
     try {
       await Api.pb

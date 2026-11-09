@@ -10,11 +10,16 @@ import 'package:share_plus/share_plus.dart';
 import '../utils/accounting.dart';
 import '../utils/format.dart';
 import '../utils/results.dart';
+import '../utils/units.dart';
 import 'api.dart';
 
 /// PDF + Excel export of lab results.
 class Export {
   static pw.Font? _reg, _bold;
+
+  /// The PDF engine draws a zero-width non-joiner (ZWNJ, the Persian half-space) as a stray glyph on
+  /// top of the neighbouring letters, so it is written as a plain space instead.
+  static String _fa(String s) => s.replaceAll('\u200c', ' ');
 
   static Future<void> _fonts() async {
     _reg ??= pw.Font.ttf(await rootBundle.load('assets/fonts/Vazirmatn-Regular.ttf'));
@@ -71,14 +76,14 @@ class Export {
           alignment: pw.Alignment.center,
           margin: const pw.EdgeInsets.only(top: 6),
           child: pw.Text(
-            'صفحه ${faNum(ctx.pageNumber)} از ${faNum(ctx.pagesCount)}  •  تهیه شده توسط $labName',
+            _fa('صفحه ${faNum(ctx.pageNumber)} از ${faNum(ctx.pagesCount)}  •  تهیه شده توسط $labName'),
             style: const pw.TextStyle(fontSize: 8, color: _grey),
           ),
         ),
         build: (ctx) => [
           pw.Center(
             child: pw.Text(
-              'گزارش نتایج آزمایش',
+              _fa('گزارش نتایج آزمایش'),
               style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, color: _pink),
             ),
           ),
@@ -109,7 +114,7 @@ class Export {
                       style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: _grey),
                     ),
                     pw.TextSpan(
-                      text: order.getStringValue('clinical_notes'),
+                      text: _fa(order.getStringValue('clinical_notes')),
                       style: const pw.TextStyle(fontSize: 9, color: _grey),
                     ),
                   ],
@@ -126,9 +131,9 @@ class Export {
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text('تفسیر / توضیحات آزمایشگاه', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                  pw.Text(_fa('تفسیر / توضیحات آزمایشگاه'), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
                   pw.SizedBox(height: 3),
-                  pw.Text(order.getStringValue('lab_comment'), style: const pw.TextStyle(fontSize: 10)),
+                  pw.Text(_fa(order.getStringValue('lab_comment')), style: const pw.TextStyle(fontSize: 10)),
                 ],
               ),
             ),
@@ -137,12 +142,12 @@ class Export {
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Text('H = بالاتر از محدوده مرجع   L = پایین‌تر از محدوده مرجع', style: const pw.TextStyle(fontSize: 8, color: _grey)),
+              pw.Text(_fa('H = بالاتر از محدوده مرجع   L = پایین‌تر از محدوده مرجع'), style: const pw.TextStyle(fontSize: 8, color: _grey)),
               if (technicalManager.isNotEmpty)
                 pw.Column(
                   children: [
-                    pw.Text('مسئول فنی آزمایشگاه', style: const pw.TextStyle(fontSize: 9, color: _grey)),
-                    pw.Text(technicalManager, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(_fa('مسئول فنی آزمایشگاه'), style: const pw.TextStyle(fontSize: 9, color: _grey)),
+                    pw.Text(_fa(technicalManager), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
                   ],
                 ),
             ],
@@ -168,18 +173,18 @@ class Export {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text(
-                labName,
+                _fa(labName),
                 style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: const PdfColor.fromInt(0xFF3D1630)),
               ),
               pw.Text(
-                'Melopet Veterinary Diagnostic Laboratory',
+                _fa('Melopet Veterinary Diagnostic Laboratory'),
                 textDirection: pw.TextDirection.ltr,
                 style: const pw.TextStyle(fontSize: 8, color: PdfColor.fromInt(0xFF3D1630)),
               ),
             ],
           ),
           pw.Text(
-            'MELOPET',
+            _fa('MELOPET'),
             textDirection: pw.TextDirection.ltr,
             style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
           ),
@@ -203,11 +208,11 @@ class Export {
                         text: pw.TextSpan(
                           children: [
                             pw.TextSpan(
-                              text: '${cells[j][0]}: ',
+                              text: _fa('${cells[j][0]}: '),
                               style: const pw.TextStyle(fontSize: 9, color: _grey),
                             ),
                             pw.TextSpan(
-                              text: cells[j][1],
+                              text: _fa(cells[j][1]),
                               style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
                             ),
                           ],
@@ -238,9 +243,9 @@ class Export {
         child: pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
-            pw.Text(t.name, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+            pw.Text(_fa(t.name), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
             pw.Text(
-              categoryInfo(t.category).en,
+              _fa(categoryInfo(t.category).en),
               textDirection: pw.TextDirection.ltr,
               style: const pw.TextStyle(fontSize: 9, color: _grey),
             ),
@@ -269,7 +274,7 @@ class Export {
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(4),
                       child: pw.Text(
-                        h,
+                        _fa(h),
                         style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: _pink),
                       ),
                     ),
@@ -293,7 +298,7 @@ class Export {
                           : null,
                       bold: true,
                     ),
-                    _cell(p.unit),
+                    _unitCell(p.unit),
                     _cell(p.range),
                   ],
                 ),
@@ -306,17 +311,38 @@ class Export {
       out.add(
         pw.Padding(
           padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          child: pw.Text(t.text, style: const pw.TextStyle(fontSize: 10)),
+          child: pw.Text(_fa(t.text), style: const pw.TextStyle(fontSize: 10)),
         ),
       );
     }
     return out;
   }
 
+  /// Unit cell with a raised exponent (the font has no superscript glyphs for every digit).
+  static pw.Widget _unitCell(String unit) {
+    final parts = parseUnit(unit);
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      child: pw.Row(
+        mainAxisSize: pw.MainAxisSize.min,
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          for (final p in parts)
+            p.sup
+                ? pw.Transform.translate(
+                    offset: const PdfPoint(0, 3.2),
+                    child: pw.Text(p.text, textDirection: pw.TextDirection.ltr, style: const pw.TextStyle(fontSize: 6.5)),
+                  )
+                : pw.Text(p.text, textDirection: pw.TextDirection.ltr, style: const pw.TextStyle(fontSize: 9.5)),
+        ],
+      ),
+    );
+  }
+
   static pw.Widget _cell(String s, {bool bold = false, PdfColor? color}) => pw.Padding(
     padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
     child: pw.Text(
-      s,
+      _fa(s),
       style: pw.TextStyle(fontSize: 9.5, fontWeight: bold ? pw.FontWeight.bold : null, color: color),
     ),
   );
@@ -366,7 +392,7 @@ class Export {
           alignment: align,
           padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
           child: pw.Text(
-            t,
+            _fa(t),
             style: pw.TextStyle(fontSize: size, fontWeight: bold ? pw.FontWeight.bold : null, color: color),
           ),
         );
@@ -387,7 +413,7 @@ class Export {
 
     pw.Widget section(String t) => pw.Padding(
       padding: const pw.EdgeInsets.only(top: 12, bottom: 4),
-      child: pw.Text(t, style: pw.TextStyle(fontSize: 11.5, fontWeight: pw.FontWeight.bold)),
+      child: pw.Text(_fa(t), style: pw.TextStyle(fontSize: 11.5, fontWeight: pw.FontWeight.bold)),
     );
 
     pw.Widget sumRow(String label, String value, {bool strong = false, PdfColor? color}) => pw.Padding(
@@ -396,11 +422,11 @@ class Export {
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
           pw.Text(
-            label,
+            _fa(label),
             style: pw.TextStyle(fontSize: strong ? 12 : 10, fontWeight: strong ? pw.FontWeight.bold : null),
           ),
           pw.Text(
-            value,
+            _fa(value),
             style: pw.TextStyle(fontSize: strong ? 13 : 10, fontWeight: pw.FontWeight.bold, color: color),
           ),
         ],
@@ -423,14 +449,14 @@ class Export {
           alignment: pw.Alignment.center,
           margin: const pw.EdgeInsets.only(top: 6),
           child: pw.Text(
-            'صفحه ${faNum(ctx.pageNumber)} از ${faNum(ctx.pagesCount)}  •  $labName',
+            _fa('صفحه ${faNum(ctx.pageNumber)} از ${faNum(ctx.pagesCount)}  •  $labName'),
             style: const pw.TextStyle(fontSize: 8, color: _grey),
           ),
         ),
         build: (ctx) => [
           pw.Center(
             child: pw.Text(
-              'صورتحساب مالی',
+              _fa('صورتحساب مالی'),
               style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, color: _pink),
             ),
           ),
@@ -469,7 +495,7 @@ class Export {
           ),
           section('سفارشها'),
           if (st.charges.isEmpty)
-            pw.Text('در این بازه سفارشی ثبت نشده است.', style: const pw.TextStyle(fontSize: 9.5, color: _grey))
+            pw.Text(_fa('در این بازه سفارشی ثبت نشده است.'), style: const pw.TextStyle(fontSize: 9.5, color: _grey))
           else
             table(
               ['تاریخ', 'کد', 'حیوان', 'آزمایشها', 'مبلغ'],
@@ -487,7 +513,7 @@ class Export {
             ),
           section('پرداختها'),
           if (st.payments.isEmpty)
-            pw.Text('در این بازه پرداختی ثبت نشده است.', style: const pw.TextStyle(fontSize: 9.5, color: _grey))
+            pw.Text(_fa('در این بازه پرداختی ثبت نشده است.'), style: const pw.TextStyle(fontSize: 9.5, color: _grey))
           else
             table(
               ['تاریخ', 'روش', 'شماره پیگیری', 'وضعیت', 'مبلغ'],
@@ -504,7 +530,7 @@ class Export {
               [1.3, 1.2, 1.6, 1.5, 1.4],
             ),
           pw.SizedBox(height: 4),
-          pw.Text('مبالغ به $kCurrency است.', style: const pw.TextStyle(fontSize: 8, color: _grey)),
+          pw.Text(_fa('مبالغ به $kCurrency است.'), style: const pw.TextStyle(fontSize: 8, color: _grey)),
           if (owes && card.isNotEmpty) ...[
             section('نحوه تسویه'),
             pw.Container(
@@ -514,18 +540,23 @@ class Export {
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text('کارت به کارت به شماره کارت زیر و ثبت پرداخت در برنامه ملوپت:', style: const pw.TextStyle(fontSize: 9.5)),
+                  pw.Text(_fa('کارت به کارت به شماره کارت زیر و ثبت پرداخت در برنامه ملوپت:'), style: const pw.TextStyle(fontSize: 9.5)),
                   pw.SizedBox(height: 4),
                   pw.Directionality(
                     textDirection: pw.TextDirection.ltr,
-                    child: pw.Text(cardGroups(card), style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, letterSpacing: 1)),
+                    child: pw.Text(
+                      _fa(cardGroups(card)),
+                      style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, letterSpacing: 1),
+                    ),
                   ),
                   pw.SizedBox(height: 2),
                   pw.Text(
-                    [
-                      settings?.getStringValue('card_holder') ?? '',
-                      settings?.getStringValue('bank_name') ?? '',
-                    ].where((e) => e.isNotEmpty).join(' • '),
+                    _fa(
+                      [
+                        settings?.getStringValue('card_holder') ?? '',
+                        settings?.getStringValue('bank_name') ?? '',
+                      ].where((e) => e.isNotEmpty).join(' • '),
+                    ),
                     style: const pw.TextStyle(fontSize: 9.5, color: _grey),
                   ),
                 ],
@@ -557,7 +588,7 @@ class Export {
       alignment: pw.Alignment.centerRight,
       padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
       child: pw.Text(
-        t,
+        _fa(t),
         style: pw.TextStyle(fontSize: size, fontWeight: bold ? pw.FontWeight.bold : null, color: color),
       ),
     );
@@ -577,19 +608,22 @@ class Export {
         header: (ctx) => _defaultHeader(labName, ctx),
         footer: (ctx) => pw.Container(
           alignment: pw.Alignment.center,
-          child: pw.Text('صفحه ${faNum(ctx.pageNumber)} از ${faNum(ctx.pagesCount)}', style: const pw.TextStyle(fontSize: 8, color: _grey)),
+          child: pw.Text(
+            _fa('صفحه ${faNum(ctx.pageNumber)} از ${faNum(ctx.pagesCount)}'),
+            style: const pw.TextStyle(fontSize: 8, color: _grey),
+          ),
         ),
         build: (ctx) => [
           pw.Center(
             child: pw.Text(
-              'گزارش مطالبات همکاران',
+              _fa('گزارش مطالبات همکاران'),
               style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, color: _pink),
             ),
           ),
           pw.SizedBox(height: 6),
           pw.Center(
             child: pw.Text(
-              'بازه: ${period.label}  •  تاریخ صدور: ${jDate(now ?? DateTime.now())}  •  مبالغ به $kCurrency',
+              _fa('بازه: ${period.label}  •  تاریخ صدور: ${jDate(now ?? DateTime.now())}  •  مبالغ به $kCurrency'),
               style: const pw.TextStyle(fontSize: 9, color: _grey),
             ),
           ),
@@ -685,7 +719,7 @@ class Export {
                 ? 'L'
                 : '',
           ),
-          t(p.unit),
+          t(unitPlain(p.unit)),
           t(p.range),
         ]);
       }

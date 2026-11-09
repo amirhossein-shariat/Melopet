@@ -56,7 +56,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   static const _icons = [Icons.local_hospital_rounded, Icons.location_on_rounded, Icons.image_rounded];
 
   Future<void> _next() async {
-    if (!_forms[_step].currentState!.validate()) return;
+    if (!validateForm(context, _forms[_step])) return;
     if (_step < 2) {
       setState(() => _step++);
       return;

@@ -18,7 +18,7 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
   bool _sending = false;
 
   Future<void> _send() async {
-    if (!_form.currentState!.validate()) return;
+    if (!validateForm(context, _form)) return;
     setState(() => _sending = true);
     try {
       await Api.pb

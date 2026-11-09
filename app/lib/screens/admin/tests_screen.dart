@@ -188,7 +188,7 @@ class _TestEditScreenState extends State<TestEditScreen> {
   static String _num(double? v) => v == null || v == 0 ? '' : (v == v.roundToDouble() ? '${v.toInt()}' : '$v');
 
   Future<void> _save() async {
-    if (!_form.currentState!.validate()) return;
+    if (!validateForm(context, _form)) return;
     setState(() => _saving = true);
     try {
       final body = {

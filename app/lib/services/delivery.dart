@@ -56,3 +56,25 @@ class DeliveryOptionsData {
     return DeliveryOptionsData.fromJson(res);
   }
 }
+
+/// A discount code checked by the server for the tests selected so far.
+class PromoApplied {
+  final String code;
+  final String title;
+  final num percent;
+  final num discount;
+  PromoApplied({required this.code, required this.title, required this.percent, required this.discount});
+
+  factory PromoApplied.fromJson(Map<String, dynamic> j) => PromoApplied(
+    code: '${j['code'] ?? ''}',
+    title: '${j['title'] ?? ''}',
+    percent: (j['percent'] as num?) ?? 0,
+    discount: (j['discount'] as num?) ?? 0,
+  );
+
+  /// Throws (with the server's Persian message) when the code is unknown or expired.
+  static Future<PromoApplied> check(String code, List<String> tests) async {
+    final res = await Api.pb.send<Map<String, dynamic>>('/api/melopet/promo/check', method: 'POST', body: {'code': code, 'tests': tests});
+    return PromoApplied.fromJson(res);
+  }
+}

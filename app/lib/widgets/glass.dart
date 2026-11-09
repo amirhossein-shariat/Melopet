@@ -3,6 +3,9 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+
+import '../utils/units.dart';
+
 import 'package:flutter/services.dart';
 
 import '../theme.dart';
@@ -604,7 +607,10 @@ Future<T?> showGlassSheet<T>(BuildContext context, Widget Function(BuildContext)
                     height: 4,
                     decoration: BoxDecoration(color: Colors.grey.withValues(alpha: .4), borderRadius: BorderRadius.circular(4)),
                   ),
-                  Flexible(child: builder(c)),
+                  // a transparent Material so ListTile ink/splashes inside the sheet stay visible
+                  Flexible(
+                    child: Material(type: MaterialType.transparency, child: builder(c)),
+                  ),
                 ],
               ),
             ),
@@ -734,4 +740,56 @@ class FlaggedValue extends StatelessWidget {
       ],
     );
   }
+}
+
+/// A lab unit ("×10³/µL", "mg/dL") with a real superscript, always laid out left-to-right and
+/// aligned to the start edge of its cell.
+class UnitText extends StatelessWidget {
+  final String unit;
+  final TextStyle? style;
+  const UnitText(this.unit, {super.key, this.style});
+
+  @override
+  Widget build(BuildContext context) {
+    final base = DefaultTextStyle.of(context).style.merge(style);
+    final size = base.fontSize ?? 14;
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Text.rich(
+          TextSpan(
+            style: base,
+            children: [
+              for (final p in parseUnit(unit))
+                if (p.sup)
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.baseline,
+                    baseline: TextBaseline.alphabetic,
+                    child: Transform.translate(
+                      offset: Offset(0, -size * .38),
+                      child: Text(p.text, style: base.copyWith(fontSize: size * .68)),
+                    ),
+                  )
+                else
+                  TextSpan(text: p.text),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Numbers and ranges ("5.5 - 19.5") keep their left-to-right order inside right-to-left screens.
+class LtrText extends StatelessWidget {
+  final String text;
+  final TextStyle? style;
+  const LtrText(this.text, {super.key, this.style});
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: AlignmentDirectional.centerStart,
+    child: Text(text, textDirection: TextDirection.ltr, style: style),
+  );
 }

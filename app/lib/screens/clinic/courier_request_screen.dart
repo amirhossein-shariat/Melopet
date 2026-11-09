@@ -54,7 +54,11 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
   String? _category;
   final _search = TextEditingController();
 
-  // ---- step 3: delivery
+  // ---- step 3: delivery + discount code
+  final _promoField = TextEditingController();
+  PromoApplied? _promo;
+  bool _checkingPromo = false;
+  String? _promoError;
   String _delivery = 'standard';
   DeliveryOptionsData? _opts;
   bool _quoting = false;
@@ -97,7 +101,37 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
   }
 
   num get _deliveryFee => _delivery == 'urgent' && (_opts?.urgentAvailable ?? false) ? _opts!.urgentFee : 0;
-  num get _grandTotal => _total + _deliveryFee;
+  num get _discount => _promo?.discount ?? 0;
+  num get _grandTotal => _total - _discount + _deliveryFee;
+
+  Future<void> _applyPromo({bool silent = false}) async {
+    final code = _promoField.text.trim();
+    if (code.isEmpty) return;
+    setState(() {
+      _checkingPromo = true;
+      _promoError = null;
+    });
+    try {
+      final p = await PromoApplied.check(code, _selected.toList());
+      if (mounted) setState(() => _promo = p);
+      if (mounted && !silent) toast(context, 'کد ${p.code} اعمال شد: ${faNum(p.percent)}٪ تخفیف');
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _promo = null;
+          _promoError = Api.error(e);
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _checkingPromo = false);
+    }
+  }
+
+  void _removePromo() => setState(() {
+    _promo = null;
+    _promoError = null;
+    _promoField.clear();
+  });
 
   Future<void> _loadQuote() async {
     setState(() => _quoting = true);
@@ -128,21 +162,37 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
     }
     setState(() => _step = 2);
     if (_opts == null || _opts!.stale) _loadQuote();
+    // the tests may have changed since the code was applied: let the server re-price it
+    if (_promo != null) _applyPromo(silent: true);
   }
 
   bool get _hasNegotiable => _catalog.any((c) => _selected.contains(c.id) && c.price <= 0);
   num get _total => _catalog.where((c) => _selected.contains(c.id)).fold<num>(0, (s, c) => s + c.price);
 
+  final _speciesKey = GlobalKey();
+  final _historyKey = GlobalKey();
+
   void _next() {
-    final okForm = _form.currentState!.validate();
+    final okForm = validateForm(context, _form);
     setState(() {
       _speciesError = species == null;
       _historyError = history.text.trim().isEmpty && voice == null;
     });
-    if (!okForm || _speciesError || _historyError) {
-      toast(context, _historyError ? 'تاریخچه کیس را بنویسید یا ویس آن را ضبط کنید' : 'موارد ستاره‌دار را کامل کنید', error: true);
-      return;
+    // the form check already told the user about missing text fields and scrolled to the first;
+    // the choice / history parts are not form fields, so report them the same way
+    if (okForm && (_speciesError || _historyError)) {
+      toast(context, _speciesError ? 'نوع حیوان را انتخاب کنید' : 'تاریخچه کیس را بنویسید یا ویس آن را ضبط کنید', error: true);
+      final target = _speciesError ? _speciesKey : _historyKey;
+      if (target.currentContext != null) {
+        Scrollable.ensureVisible(
+          target.currentContext!,
+          alignment: .15,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic,
+        );
+      }
     }
+    if (!okForm || _speciesError || _historyError) return;
     FocusScope.of(context).unfocus();
     setState(() => _step = 1);
   }
@@ -171,6 +221,7 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
         'file_no': enNum(fileNo.text.trim()),
         'delivery': _delivery,
         if (_delivery == 'urgent') 'delivery_quote': _opts!.quote,
+        if (_promo != null) 'promo_code': _promo!.code,
         'fasting': fasting,
         'pickup_address': pickupAddress.text.trim(),
         'clinical_notes': history.text.trim(),
@@ -300,6 +351,7 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
                 Field(owner, 'نام صاحب حیوان', icon: Icons.person_rounded, required: true),
                 Field(pet, 'نام حیوان', icon: Icons.pets_rounded, required: true),
                 Text(
+                  key: _speciesKey,
                   'نوع حیوان *',
                   style: TextStyle(fontWeight: FontWeight.w700, color: _speciesError ? MP.danger : null),
                 ),
@@ -333,7 +385,7 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
               ],
             ),
           ),
-          const SectionTitle('تاریخچه کیس (History) *'),
+          SectionTitle('تاریخچه کیس (History) *', key: _historyKey),
           Glass(
             tint: _historyError ? MP.danger.withValues(alpha: .08) : null,
             child: Column(
@@ -532,6 +584,76 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
   }
 
   // ------------------------------------------------------------ step 3
+  Widget _promoBox() {
+    final p = _promo;
+    return Glass(
+      child: p != null
+          ? Row(
+              children: [
+                Icon(Icons.local_offer_rounded, color: readable(context, MP.success)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'کد ${p.code} اعمال شد',
+                        key: const Key('promo-applied'),
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      Text(
+                        '${faNum(p.percent)}٪ تخفیف روی آزمایش‌ها • ${money(p.discount)}',
+                        style: TextStyle(fontSize: 12, color: readable(context, MP.success), fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(tooltip: 'حذف کد', onPressed: _removePromo, icon: const Icon(Icons.close_rounded)),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        key: const Key('promo-field'),
+                        controller: _promoField,
+                        textDirection: TextDirection.ltr,
+                        textCapitalization: TextCapitalization.characters,
+                        onSubmitted: (_) => _applyPromo(),
+                        decoration: InputDecoration(
+                          hintText: 'کد تخفیف دارید؟ وارد کنید',
+                          prefixIcon: const Icon(Icons.local_offer_outlined),
+                          errorText: _promoError,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: FilledButton(
+                        key: const Key('promo-apply'),
+                        onPressed: _checkingPromo ? null : _applyPromo,
+                        child: _checkingPromo
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5))
+                            : const Text('اعمال'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'کدهای تخفیف را در بخش «پیشنهادها» ببینید؛ تخفیف روی آزمایش‌ها اعمال می‌شود، نه هزینه پیک.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+    );
+  }
+
   Widget _deliveryStep() {
     final selected = _catalog.where((c) => _selected.contains(c.id)).toList();
     Widget line(String label, String value, {bool strong = false, Color? color}) => Padding(
@@ -568,6 +690,8 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
               label: const Text('ثبت محل دریافت نمونه'),
             ),
           ),
+        const SectionTitle('کد تخفیف'),
+        _promoBox(),
         const SectionTitle('خلاصه سفارش'),
         Glass(
           child: Column(
@@ -576,6 +700,7 @@ class _CourierRequestScreenState extends State<CourierRequestScreen> {
               if (selected.isEmpty) const Text('آزمایشی انتخاب نشده؛ فاکتور در چت هماهنگ می‌شود.'),
               const Divider(height: 22),
               line('جمع آزمایش‌ها', money(_total)),
+              if (_discount > 0) line('تخفیف (کد ${_promo!.code})', '− ${money(_discount)}', color: readable(context, MP.success)),
               line(
                 _delivery == 'urgent' ? 'هزینه پیک فوری' : 'هزینه ارسال',
                 _delivery == 'urgent' ? money(_deliveryFee) : 'رایگان',

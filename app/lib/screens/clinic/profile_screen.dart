@@ -37,11 +37,31 @@ class ProfileScreen extends StatelessWidget {
           Glass(
             child: Row(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: logo.isNotEmpty
-                      ? Image.network(Api.fileUrl(me, 'logo', thumb: '200x200').toString(), width: 64, height: 64, fit: BoxFit.cover)
-                      : const MelopetLogo(size: 64),
+                // tap the logo to add / change it (also available as its own row below)
+                GestureDetector(
+                  key: const Key('profile-logo'),
+                  onTap: state.isAdmin ? null : () => _changeLogo(context),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: logo.isNotEmpty
+                            ? Image.network(Api.fileUrl(me, 'logo', thumb: '200x200').toString(), width: 64, height: 64, fit: BoxFit.cover)
+                            : const MelopetLogo(size: 64),
+                      ),
+                      if (!state.isAdmin)
+                        Positioned(
+                          bottom: -6,
+                          left: -6,
+                          child: CircleAvatar(
+                            radius: 13,
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            child: Icon(Icons.photo_camera_rounded, size: 15, color: Theme.of(context).colorScheme.onPrimary),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -80,6 +100,14 @@ class ProfileScreen extends StatelessWidget {
             'ویرایش مشخصات مجموعه',
             () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen())),
           ),
+          if (!state.isAdmin)
+            _tile(
+              context,
+              Icons.add_photo_alternate_rounded,
+              MP.sky,
+              logo.isEmpty ? 'افزودن لوگوی مجموعه' : 'تغییر لوگوی مجموعه',
+              () => _changeLogo(context),
+            ),
           if (!state.isAdmin)
             _tile(
               context,
@@ -153,6 +181,49 @@ class ProfileScreen extends StatelessWidget {
     ),
   );
 
+  /// Pick a logo and upload it right away (or remove the current one).
+  Future<void> _changeLogo(BuildContext context) async {
+    final state = context.read<AppState>();
+    final has = (state.me?.getStringValue('logo') ?? '').isNotEmpty;
+    final choice = await showGlassSheet<String>(
+      context,
+      (c) => Padding(
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded),
+              title: Text(has ? 'انتخاب لوگوی جدید' : 'انتخاب لوگو از گالری'),
+              onTap: () => Navigator.pop(c, 'pick'),
+            ),
+            if (has)
+              ListTile(
+                leading: Icon(Icons.delete_outline_rounded, color: readable(c, MP.danger)),
+                title: const Text('حذف لوگو'),
+                onTap: () => Navigator.pop(c, 'remove'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !context.mounted) return;
+    try {
+      final id = state.me!.id;
+      if (choice == 'remove') {
+        await Api.pb.collection('users').update(id, body: {'logo': null});
+      } else {
+        final f = await pickOne(imagesOnly: true);
+        if (f == null) return;
+        await Api.pb.collection('users').update(id, files: [f.toMultipart('logo')]);
+      }
+      await state.reloadMe();
+      if (context.mounted) toast(context, choice == 'remove' ? 'لوگو حذف شد' : 'لوگو ذخیره شد');
+    } catch (e) {
+      if (context.mounted) toast(context, Api.error(e), error: true);
+    }
+  }
+
   Future<void> _changePassword(BuildContext context) async {
     final old = TextEditingController();
     final p1 = TextEditingController();
@@ -225,7 +296,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _saving = false;
 
   Future<void> _save() async {
-    if (!_form.currentState!.validate()) return;
+    if (!validateForm(context, _form)) return;
     setState(() => _saving = true);
     try {
       final body = {for (final e in c.entries) e.key: enNum(e.value.text.trim())};

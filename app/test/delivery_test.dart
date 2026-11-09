@@ -137,6 +137,90 @@ void main() {
     });
   });
 
+  group('discount codes (demo server mirrors backend promo.go)', () {
+    late PocketBase clinic;
+    late String cbc;
+    late num cbcPrice;
+    setUp(() async {
+      clinic = await login('09121111111', 'demo1234');
+      final c = (await clinic.send<List<dynamic>>('/api/melopet/catalog')).firstWhere((x) => x['code'] == 'CBC');
+      cbc = c['id'] as String;
+      cbcPrice = c['price'] as num;
+    });
+    Future<Map<String, dynamic>> check(String code) => clinic.send<Map<String, dynamic>>(
+      '/api/melopet/promo/check',
+      method: 'POST',
+      body: {
+        'code': code,
+        'tests': [cbc],
+      },
+    );
+    Map<String, dynamic> order(Map<String, dynamic> extra) => {
+      'tests': [cbc],
+      'pet_name': 'ملو',
+      'owner_name': 'صاحب',
+      'species': 'dog',
+      'clinical_notes': 'تست',
+      ...extra,
+    };
+
+    test('a valid code (any case, with spaces) returns the percentage and the amount off the tests', () async {
+      final r = await check('  liver20 ');
+      expect(r['code'], 'LIVER20');
+      expect(r['percent'], 20);
+      expect(r['discount'], cbcPrice * 20 / 100);
+    });
+
+    test('unknown, expired and inactive codes are refused with a reason', () async {
+      await expectLater(
+        check('NOPE'),
+        throwsA(isA<ClientException>().having((e) => e.response['message'], 'message', contains('معتبر نیست'))),
+      );
+      await expectLater(check(''), throwsA(isA<ClientException>()));
+      final p = DemoServer.instance.col('promotions').firstWhere((x) => x['code'] == 'LIVER20');
+      p['valid_until'] = DateTime.now().subtract(const Duration(days: 1)).toUtc().toIso8601String();
+      await expectLater(
+        check('LIVER20'),
+        throwsA(isA<ClientException>().having((e) => e.response['message'], 'message', contains('مهلت'))),
+      );
+      p['valid_until'] = '';
+      p['active'] = false;
+      await expectLater(check('LIVER20'), throwsA(isA<ClientException>()));
+    });
+
+    test('the order stores the server-computed discount (client values ignored) and it reduces what is owed', () async {
+      final o = await clinic.send<Map<String, dynamic>>(
+        '/api/melopet/orders',
+        method: 'POST',
+        body: order({'promo_code': 'liver20', 'discount': 999999}),
+      );
+      expect(o['discount'], cbcPrice * 20 / 100);
+      expect(o['discount_code'], 'LIVER20');
+      expect(o['total'], cbcPrice); // gross
+      final st = Statement.build(period: const StatementPeriod('all', 'همه', null, null), orders: [RecordModel.fromJson(o)], payments: []);
+      expect(st.chargesTotal, cbcPrice * 0.8);
+    });
+
+    test('the discount applies to the tests only, not to the courier fee', () async {
+      final q = await clinic.send<Map<String, dynamic>>('/api/melopet/delivery/quote', method: 'POST', body: {});
+      final fee = q['urgent']['fee'] as num;
+      final o = await clinic.send<Map<String, dynamic>>(
+        '/api/melopet/orders',
+        method: 'POST',
+        body: order({'promo_code': 'LIVER20', 'delivery': 'urgent', 'delivery_quote': q['urgent']['quote']}),
+      );
+      expect(o['discount'], cbcPrice * 20 / 100);
+      expect(o['total'], cbcPrice + fee);
+    });
+
+    test('a bad code blocks the order instead of silently ignoring it', () async {
+      await expectLater(
+        clinic.send('/api/melopet/orders', method: 'POST', body: order({'promo_code': 'BAD'})),
+        throwsA(isA<ClientException>().having((e) => e.statusCode, 'status', 400)),
+      );
+    });
+  });
+
   group('DeliveryOptions widget', () {
     Widget host(DeliveryOptionsData? d, {bool loading = false, String value = 'standard', required ValueChanged<String> onChanged}) =>
         MaterialApp(

@@ -243,7 +243,14 @@ class _ResultEntryScreenState extends State<ResultEntryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                      Text(p.range.isEmpty ? p.unit : '${p.range} ${p.unit}', style: const TextStyle(fontSize: 10.5)),
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 4,
+                        children: [
+                          if (p.range.isNotEmpty) LtrText(p.range, style: const TextStyle(fontSize: 10.5)),
+                          UnitText(p.unit, style: const TextStyle(fontSize: 10.5)),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -254,7 +261,7 @@ class _ResultEntryScreenState extends State<ResultEntryScreen> {
                     keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                     decoration: InputDecoration(
                       isDense: true,
-                      suffixText: p.unit,
+                      suffix: p.unit.isEmpty ? null : UnitText(p.unit, style: const TextStyle(fontSize: 12)),
                       suffixIcon: f == Flag.high
                           ? const Icon(Icons.arrow_upward_rounded, color: MP.danger)
                           : f == Flag.low

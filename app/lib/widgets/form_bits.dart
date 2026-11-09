@@ -161,3 +161,31 @@ class ChoiceRow extends StatelessWidget {
     );
   }
 }
+
+/// Validates [form]. When something is missing the user is TOLD (a toast naming the first problem
+/// and how many there are) and the screen scrolls to the first invalid field — fields that are
+/// off-screen must never fail silently.
+bool validateForm(BuildContext context, GlobalKey<FormState> form) {
+  final state = form.currentState;
+  if (state == null) return true;
+  if (state.validate()) return true;
+
+  final problems = <({String text, BuildContext ctx})>[];
+  void visit(Element e) {
+    if (e is StatefulElement && e.state is FormFieldState && (e.state as FormFieldState).hasError) {
+      problems.add((text: (e.state as FormFieldState).errorText ?? '', ctx: e));
+      return;
+    }
+    e.visitChildren(visit);
+  }
+
+  form.currentContext?.visitChildElements(visit);
+  if (problems.isNotEmpty) {
+    final first = problems.first;
+    toast(context, problems.length == 1 ? first.text : '${first.text} (و ${faNum(problems.length - 1)} مورد دیگر)', error: true);
+    Scrollable.ensureVisible(first.ctx, alignment: .15, duration: const Duration(milliseconds: 350), curve: Curves.easeOutCubic);
+  } else {
+    toast(context, 'موارد ستاره‌دار را کامل کنید', error: true);
+  }
+  return false;
+}

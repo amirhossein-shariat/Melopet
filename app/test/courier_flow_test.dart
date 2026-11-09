@@ -37,7 +37,7 @@ void main() {
     }
   }
 
-  Future<void> run(WidgetTester t, Brightness brightness, {required bool urgent}) async {
+  Future<void> run(WidgetTester t, Brightness brightness, {required bool urgent, bool promo = false}) async {
     await t.runAsync(() async {
       DemoServer.instance.reset();
       await Api.pb.collection('users').authWithPassword('09121111111', 'demo1234');
@@ -101,6 +101,25 @@ void main() {
       expect(find.text('هزینه پیک فوری'), findsOneWidget);
     }
 
+    num discount = 0;
+    if (promo) {
+      final before = t.widget<Text>(find.byKey(const Key('grand-total'))).data!;
+      // a wrong code is explained, not silently ignored
+      await t.enterText(find.byKey(const Key('promo-field')), 'WRONG');
+      await t.tap(find.byKey(const Key('promo-apply')));
+      await settle(t);
+      expect(find.text('کد تخفیف معتبر نیست.'), findsOneWidget);
+      expect(find.byKey(const Key('promo-applied')), findsNothing);
+      // a right one (any letter case) is applied and the payable amount drops
+      await t.enterText(find.byKey(const Key('promo-field')), 'liver20');
+      await t.tap(find.byKey(const Key('promo-apply')));
+      await settle(t);
+      expect(find.byKey(const Key('promo-applied')), findsOneWidget);
+      expect(find.textContaining('تخفیف (کد LIVER20)'), findsOneWidget);
+      expect(t.widget<Text>(find.byKey(const Key('grand-total'))).data, isNot(before));
+      discount = 1;
+    }
+
     final boundary = t.renderObject<RenderRepaintBoundary>(find.byKey(key));
     final dump = Platform.environment['SHOTS'];
     if (dump != null) {
@@ -125,6 +144,13 @@ void main() {
     } else {
       expect(order['delivery_fee'], 0);
     }
+    if (promo) {
+      expect(order['discount_code'], 'LIVER20');
+      expect(order['discount'] as num, greaterThan(0));
+      expect(discount, 1);
+    } else {
+      expect(order['discount'], 0);
+    }
     // what the clinic saw is what was charged
     expect(totalShown.replaceAll(RegExp(r'[^۰-۹]'), ''), contains(RegExp(r'[۰-۹]')));
 
@@ -135,5 +161,8 @@ void main() {
   }
 
   testWidgets('free delivery: order is placed with no extra fee', (t) => run(t, Brightness.light, urgent: false));
+  testWidgets('discount code: wrong code explained, right code lowers the payable amount and is stored on the order', (t) async {
+    await run(t, Brightness.light, urgent: false, promo: true);
+  });
   testWidgets('urgent delivery (dark): fee is added and charged', (t) => run(t, Brightness.dark, urgent: true));
 }

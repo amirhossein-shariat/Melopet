@@ -58,6 +58,7 @@ type orderRequest struct {
 	FileNo        string   `json:"file_no"`
 	SampleType    string   `json:"sample_type"`
 	SampleCount   int      `json:"sample_count"`
+	PromoCode     string   `json:"promo_code"`
 	Delivery      string   `json:"delivery"`       // "standard" (free, next round) | "urgent" (quoted fee)
 	DeliveryQuote string   `json:"delivery_quote"` // token from /delivery/quote, required for urgent (clinics)
 	Fasting       bool     `json:"fasting"`
@@ -73,6 +74,7 @@ func registerRoutes(se *core.ServeEvent) {
 	g := se.Router.Group("/api/melopet")
 	g.Bind(apis.RequireAuth("users"))
 	registerCourierRoutes(g)
+	registerPromoRoutes(g)
 
 	// The active tests with their prices.
 	g.GET("/catalog", func(e *core.RequestEvent) error {
@@ -180,6 +182,17 @@ func registerRoutes(se *core.ServeEvent) {
 			total += dq.Fee
 		}
 
+		// ---- discount code: a percentage of the tests (not of the courier fee) ----
+		var promo promoResult
+		if strings.TrimSpace(body.PromoCode) != "" {
+			testsTotal := total - dq.Fee
+			p, err := applyPromo(e.App, body.PromoCode, testsTotal)
+			if err != nil {
+				return e.BadRequestError(err.Error(), nil)
+			}
+			promo = p
+		}
+
 		col, err := e.App.FindCollectionByNameOrId("orders")
 		if err != nil {
 			return e.InternalServerError("", err)
@@ -230,6 +243,8 @@ func registerRoutes(se *core.ServeEvent) {
 		}
 		r.Set("items", items)
 		r.Set("total", total)
+		r.Set("discount", promo.Discount)
+		r.Set("discount_code", promo.Code)
 		if err := e.App.Save(r); err != nil {
 			return e.BadRequestError("ثبت سفارش ناموفق بود", err)
 		}
@@ -314,7 +329,7 @@ func registerRoutes(se *core.ServeEvent) {
 		var revenue struct {
 			Sum float64 `db:"s"`
 		}
-		_ = e.App.DB().NewQuery("SELECT COALESCE(SUM(total),0) AS s FROM orders WHERE status != 'cancelled'").One(&revenue)
+		_ = e.App.DB().NewQuery("SELECT COALESCE(SUM(total - discount),0) AS s FROM orders WHERE status != 'cancelled'").One(&revenue)
 		var unread struct {
 			Sum int64 `db:"s"`
 		}
